@@ -1,0 +1,4 @@
+.env
+YOLO_training_files/images
+YOLO_training_files/.DS_Store
+.DS_Store

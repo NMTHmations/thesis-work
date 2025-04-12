@@ -2,7 +2,7 @@ import supervision as sv
 from inference import get_model
 import cv2
 
-model = get_model(model_id="yolov8n-640")
+model = get_model(model_id="yolov11n-640")
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("Error: Could not open video.")
@@ -17,7 +17,7 @@ while True:
     results = model.infer(frame)[0] # run inference
     detections = sv.Detections.from_inference(results) # get detections
     detections = detections[detections["class_name"] == "person"] # filter for person class
-    detections = detections[detections.confidence > 0.85] # filter for confidence > 0.5
+    detections = detections[detections.confidence > 0.65] # filter for confidence > 0.5
     label_annotator = sv.LabelAnnotator() # get annotations
     box_annotator = sv.BoxAnnotator() # get boxing
     labels = [f"{class_name} {confidence:.2f}" for class_name, confidence in zip(detections["class_name"], detections.confidence)]
