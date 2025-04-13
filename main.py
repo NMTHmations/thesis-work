@@ -1,8 +1,9 @@
 import supervision as sv
 from inference import get_model
+import ultralytics
 import cv2
 
-model = get_model(model_id="yolov11n-640")
+model = ultralytics.YOLO("yolo11n.pt") # load model
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("Error: Could not open video.")
@@ -10,19 +11,23 @@ if not cap.isOpened():
 
 while True:
     ret, frame = cap.read()
+    frame = cv2.resize(frame, (640,384)) # resize frame
     if not ret:
         print("Error: Could not read frame.")
         break
-
-    results = model.infer(frame)[0] # run inference
-    detections = sv.Detections.from_inference(results) # get detections
+    results = model(frame)[0] # run inference
+    tracker = sv.ByteTrack() # create tracker
+    detections = sv.Detections.from_ultralytics(results) # get detections
     detections = detections[detections["class_name"] == "person"] # filter for person class
-    detections = detections[detections.confidence > 0.65] # filter for confidence > 0.5
+    detections = detections[detections.confidence > 0.1] # filter for confidence > 0.5
+    detections = tracker.update_with_detections(detections) # update tracker
     label_annotator = sv.LabelAnnotator() # get annotations
     box_annotator = sv.BoxAnnotator() # get boxing
-    labels = [f"{class_name} {confidence:.2f}" for class_name, confidence in zip(detections["class_name"], detections.confidence)]
+    trace_annotator = sv.TraceAnnotator() # create trace annotator
+    labels = [f"{results.names[class_name]} {confidence:.2f}" for class_name, confidence in zip(detections.class_id, detections.confidence)]
     frame = box_annotator.annotate(scene=frame, detections=detections)
     frame = label_annotator.annotate(scene=frame, detections=detections, labels=labels)
+    frame = trace_annotator.annotate(scene=frame, detections=detections) # annotate frame with detections
     
 
     """
