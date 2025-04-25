@@ -18,8 +18,8 @@ while True:
     results = model(frame)[0] # run inference
     tracker = sv.ByteTrack() # create tracker
     detections = sv.Detections.from_ultralytics(results) # get detections
-    detections = detections[detections["class_name"] == "person"] # filter for person class
-    detections = detections[detections.confidence > 0.1] # filter for confidence > 0.5
+    detections = detections[detections["class_name"] != "person"] # filter for person class
+    detections = detections[detections.confidence > 0.35] # filter for confidence > 0.5
     detections = tracker.update_with_detections(detections) # update tracker
     label_annotator = sv.LabelAnnotator() # get annotations
     box_annotator = sv.BoxAnnotator() # get boxing
