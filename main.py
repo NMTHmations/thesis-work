@@ -1,9 +1,8 @@
+import torch
 import supervision as sv
-from inference import get_model
-import ultralytics
 import cv2
 
-model = ultralytics.YOLO("yolo11n.pt") # load model
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='YOLO_training_files/yolov5/runs/train/exp7/weights/best.pt') 
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("Error: Could not open video.")
@@ -15,10 +14,10 @@ while True:
     if not ret:
         print("Error: Could not read frame.")
         break
-    results = model(frame)[0] # run inference
+    results = model(frame) # run inference
     tracker = sv.ByteTrack() # create tracker
-    detections = sv.Detections.from_ultralytics(results) # get detections
-    detections = detections[detections["class_name"] != "person"] # filter for person class
+    detections = sv.Detections.from_yolov5(results) # get detections
+    detections = detections[detections.class_id != "person"] # filter for person class
     detections = detections[detections.confidence > 0.35] # filter for confidence > 0.5
     detections = tracker.update_with_detections(detections) # update tracker
     label_annotator = sv.LabelAnnotator() # get annotations
@@ -41,7 +40,7 @@ while True:
         cv2.putText(frame, str(label), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
     """
 
-    cv2.imshow("YOLOv8 Detection", frame)
+    cv2.imshow("YOLOv5 Detection", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
