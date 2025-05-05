@@ -1,6 +1,16 @@
 import torch
 import supervision as sv
 import cv2
+import numpy as np
+
+class PerspectiveTransform:
+    def __init__(self, source, target):
+        self.source = source
+        self.target = target
+        self.matrix = cv2.getPerspectiveTransform(source, target) # calculate the perspective transformation matrix
+
+    def apply(self, frame):
+        return cv2.warpPerspective(frame, self.matrix, (frame.shape[1], frame.shape[0])) # apply the perspective transformation to the frame
 
 model = torch.hub.load('ultralytics/yolov5', 'custom', path='YOLO_training_files/yolov5/runs/train/exp7/weights/best.pt') 
 cap = cv2.VideoCapture(0)
@@ -8,12 +18,24 @@ if not cap.isOpened():
     print("Error: Could not open video.")
     exit()
 
-while True:
-    ret, frame = cap.read()
-    frame = cv2.resize(frame, (640,384)) # resize frame
-    if not ret:
-        print("Error: Could not read frame.")
-        break
+# Task to do: Determine the source points
+source = np.array([
+    [0, 0],
+    [0, 0.5],
+    [0, 0]
+    ]) # source points
+
+# Define the target points for the perspective transformation
+# These points should be in the same order as the source points
+
+target = np.array([
+    [0,0],
+    [0,24],
+    [250,0],
+    [250,24]
+    ]) # target points
+
+def detection_frame(frame:tuple):
     results = model(frame) # run inference
     tracker = sv.ByteTrack() # create tracker
     detections = sv.Detections.from_yolov5(results) # get detections
@@ -27,22 +49,24 @@ while True:
     frame = box_annotator.annotate(scene=frame, detections=detections)
     frame = label_annotator.annotate(scene=frame, detections=detections, labels=labels)
     frame = trace_annotator.annotate(scene=frame, detections=detections) # annotate frame with detections
-    
+    return frame
 
-    """
-    labels = detections.class_id
-    boxes = detections.xyxy
-    # Display the detections on the frame
-    # I left this commented out in the case of compability issues
-    for box, label in zip(boxes, labels):
-        x1, y1, x2, y2 = map(int, box)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(frame, str(label), (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-    """
+# Test the model with the detection of a ball - currently it detects as volleyball instead of tennis ball
+# and the confidence is relatively low - 0.65
+image = cv2.imread("test.jpg") # read image
+image = detection_frame(image) # run detection
+cv2.imshow("YOLOv5 Detection of image", image) # show image
 
+while True:
+    ret, frame = cap.read()
+    frame = cv2.resize(frame, (640,384)) # resize frame
+    if not ret:
+        print("Error: Could not read frame.")
+        break
+    frame = detection_frame(frame) # run detection
     cv2.imshow("YOLOv5 Detection", frame)
-
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
+
 cap.release()
 cv2.destroyAllWindows()
