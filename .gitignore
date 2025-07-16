@@ -1,4 +1,6 @@
 .env
 YOLO_training_files/images
+YOLO_training_files/train
+YOLO_training_files/valid
 YOLO_training_files/.DS_Store
 .DS_Store
