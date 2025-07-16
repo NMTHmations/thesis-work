@@ -3,8 +3,8 @@ YOLO_training_files/images
 YOLO_training_files/train
 YOLO_training_files/valid
 YOLO_training_files/test
-YOLO_training_files/yolov5/test/
-YOLO_training_files/yolov5/train/
-YOLO_training_files/yolov5/valid/
+YOLO_training_files/yolov5/test
+YOLO_training_files/yolov5/train
+YOLO_training_files/yolov5/valid
 YOLO_training_files/.DS_Store
 .DS_Store
