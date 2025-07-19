@@ -1,8 +1,8 @@
 
-Detect And Classify Object Detection - v1 2025-04-24 9:57pm
+Detect And Classify Object Detection - v3 2025-07-18 9:43pm
 ==============================
 
-This dataset was exported via roboflow.com on April 24, 2025 at 8:01 PM GMT
+This dataset was exported via roboflow.com on July 18, 2025 at 7:44 PM GMT
 
 Roboflow is an end-to-end computer vision platform that helps you
 * collaborate with your team on computer vision projects
@@ -17,7 +17,7 @@ visit https://github.com/roboflow/notebooks
 
 To find over 100k other datasets and pre-trained models, visit https://universe.roboflow.com
 
-The dataset includes 2061 images.
+The dataset includes 3001 images.
 Items are annotated in YOLO v5 PyTorch format.
 
 The following pre-processing was applied to each image:
