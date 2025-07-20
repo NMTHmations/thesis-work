@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 
 
+
 #object detection model
 model = YOLO("yolo11n.pt")
 
@@ -32,16 +33,23 @@ def processSingleFrame(frame):
 
     return graysclafeFrame, detectedObjects
 
-def processLiveVideo():
+def processVideo(path: str = None):
     """
         - Captures video from webcam and processes each frame.
         - Yields original, grayscale, and detection frames.
+
+        In case testing with video file,
+         the path should be given in the following format: "../testVid.fileFormat"
     """
 
-    capture = cv2.VideoCapture(0)
 
-    #Alternative testing with a video file
-    #capture = cv2.VideoCapture("../ballpassing.mp4")
+
+    if path:
+        capture = cv2.VideoCapture(path)
+    else:
+        capture = cv2.VideoCapture(0)
+
+
 
     if not capture.isOpened():
         raise IOError("Cannot capture/open video.")
@@ -64,7 +72,6 @@ def processLiveVideo():
         capture.release()
 
 
-
 if __name__ == '__main__':
 
     """
@@ -73,7 +80,7 @@ if __name__ == '__main__':
     """
 
     #for testing purposes
-    for process in processLiveVideo():
+    for process in processVideo("../ballpassing2.mp4"):
 
         cv2.imshow("live", process[0])
         cv2.imshow("gray", process[1])
@@ -83,3 +90,5 @@ if __name__ == '__main__':
             break
 
     cv2.destroyAllWindows()
+
+
