@@ -5,7 +5,13 @@ import numpy as np
 
 
 #object detection model
-model = YOLO("yolo11n.pt")
+"""
+    Models are and should be in the project/models folder 
+"""
+model = YOLO("../models/yolo11l.engine")
+source = "../sources/vid/real2.mp4"
+
+#source = None
 
 
 def processSingleFrame(frame):
@@ -39,7 +45,7 @@ def processVideo(path: str = None):
         - Yields original, grayscale, and detection frames.
 
         In case testing with video file,
-         the path should be given in the following format: "../testVid.fileFormat"
+         the path should be given in the following format: "project/sources/vid/testVid.fileFormat"
     """
 
 
@@ -61,6 +67,8 @@ def processVideo(path: str = None):
             if not ret:
                 break
 
+            #frame = cv2.resize(frame, (640, 640), interpolation=cv2.INTER_LINEAR)
+
             graysclafeFrame, detectedObjects = processSingleFrame(frame)
 
             yield frame, graysclafeFrame, detectedObjects
@@ -78,13 +86,37 @@ if __name__ == '__main__':
         Main loop for running the video processing.
         - Displays the original, grayscale, and detection output.
     """
+    windowsSize = (1280, 720)
+
+    cv2.namedWindow("live", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("live", windowsSize[0], windowsSize[1])
+
+    cv2.namedWindow("gray", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("gray", windowsSize[0], windowsSize[1])
+
+    cv2.namedWindow("detect", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("detect", windowsSize[0], windowsSize[1])
 
     #for testing purposes
-    for process in processVideo("../ballpassing2.mp4"):
+    for process in processVideo(source):
 
-        cv2.imshow("live", process[0])
-        cv2.imshow("gray", process[1])
-        cv2.imshow("detect", np.array(process[2]))
+        rawFrame, grayscaleFrame, detectedFrame = process[0], process[1], np.array(process[2])
+
+
+
+        #If you came across with the problem that the video is upside down include the following:
+        
+        """
+        rawFrame = cv2.rotate(rawFrame, cv2.ROTATE_180)
+        grayscaleFrame = cv2.rotate(grayscaleFrame, cv2.ROTATE_180)
+        detectedFrame = cv2.rotate(np.array(detectedFrame), cv2.ROTATE_180)
+        """
+
+
+        cv2.imshow("live", rawFrame)
+        cv2.imshow("gray", grayscaleFrame)
+        cv2.imshow("detect", detectedFrame)
+
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
