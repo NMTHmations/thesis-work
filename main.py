@@ -74,6 +74,8 @@ def speedCalculator(points: np.ndarray, detections: sv.Detections):
     for tracker_id, [_, y] in zip(detections.tracker_id, points):
         coordinates[tracker_id].append(y)
 
+    meters_per_pixel = (1/40 + 1/250) /2
+    
     for tracker_id in detections.tracker_id:
     
         print(len(coordinates[tracker_id]))
@@ -81,12 +83,14 @@ def speedCalculator(points: np.ndarray, detections: sv.Detections):
         if len(coordinates[tracker_id]) > 0:
 
             # calculate the speed
-            coordinate_start = coordinates[tracker_id][-1]
-            coordinate_end = coordinates[tracker_id][0]
-            distance = abs(coordinate_start - coordinate_end)
-            time = len(coordinates[tracker_id]) / cap.get(cv2.CAP_PROP_FPS)
-            speed = distance / time * 3.6
-            speeds[tracker_id] = speed
+            coordinate_start = coordinates[tracker_id][0]
+            coordinate_end = coordinates[tracker_id][-1]
+            distance_pixels = np.linalg.norm(np.array(coordinate_end) - np.array(coordinate_start))
+            distance = distance_pixels * meters_per_pixel
+            time = (len(coordinates[tracker_id]) - 1) / cap.get(cv2.CAP_PROP_FPS)
+            if time > 0: 
+                speed = distance / time * 3.6
+                speeds[tracker_id] = speed
     
     return speeds
 
