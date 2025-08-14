@@ -1,5 +1,14 @@
+from enum import StrEnum
+
 import cv2
 import glob, os
+
+
+class DirPaths(StrEnum):
+    MAINDIR = "images"
+    LEFTDIR = "left"
+    RIGHTDIR = "right"
+
 
 """
 Recommended to use like the following 
@@ -22,11 +31,20 @@ class ImageCapturer():
     """
     @staticmethod
     def clear():
-        files = glob.glob('images/left/*.*')
-        files.extend(glob.glob('images/right/*.*'))
 
-        for file in files:
-            os.remove(file)
+        files = []
+
+        mainDir = str(DirPaths.MAINDIR)
+        subDirs = [str(DirPaths.LEFTDIR), str(DirPaths.RIGHTDIR)]
+
+        if os.path.exists(mainDir):
+            for subDir in subDirs:
+                subDirPath = os.path.join(mainDir, subDir)
+                if os.path.exists(subDirPath):
+                    files.extend(glob.glob(subDirPath + "/*"))
+
+            for file in files:
+                os.remove(file)
 
         print("Removed all left/right images")
 
@@ -52,8 +70,30 @@ class ImageCapturer():
     @staticmethod
     def captureCalibrationImages():
 
+        mainDir = str(DirPaths.MAINDIR)
+        subDirs = [str(DirPaths.LEFTDIR), str(DirPaths.RIGHTDIR)]
+
+        def create_dirs():
+
+            if not os.path.exists(mainDir):
+                os.makedirs(mainDir)
+                print("Directory " , mainDir.upper() , " created ")
+            else:
+                print("Directory " , mainDir.upper() , " already exists")
+
+            for subDir in subDirs:
+                subPath = os.path.join(mainDir, subDir)
+                if not os.path.exists(subPath):
+                    os.makedirs(subPath)
+                    print("Directory " , subDir.upper() , " created ")
+                else:
+                    print("Directory " , subDir.upper() , " already exists")
+
+        create_dirs()
+
         capRight = cv2.VideoCapture(0)
         capLeft = cv2.VideoCapture(1)
+
 
         if not capRight.isOpened():
             raise IOError("Couldn't open webcam1 (Right).")
@@ -70,8 +110,8 @@ class ImageCapturer():
             if not successLeft or not successRight:
                 raise Exception("Failed to read frame.")
 
-            cv2.imshow('left', frameLeft)
-            cv2.imshow('right', frameRight)
+            cv2.imshow("left", frameLeft)
+            cv2.imshow("right", frameRight)
 
             showKey = cv2.waitKey(1) & 0xFF
             if showKey == ord('q'):
@@ -82,19 +122,22 @@ class ImageCapturer():
                 capturedRight =  frameRight
                 capturedLeft = frameLeft
 
-                cv2.namedWindow('capturedRightFrame', cv2.WINDOW_AUTOSIZE)
-                cv2.namedWindow('capturedLeftFrame', cv2.WINDOW_AUTOSIZE)
-                cv2.imshow('capturedRightFrame', capturedRight)
-                cv2.imshow('capturedLeftFrame', capturedLeft)
+                rightWindowName = "capturedRightFrame"
+                leftWindowName = "capturedLeftFrame"
+
+                cv2.namedWindow(rightWindowName, cv2.WINDOW_AUTOSIZE)
+                cv2.namedWindow(leftWindowName, cv2.WINDOW_AUTOSIZE)
+                cv2.imshow(rightWindowName, capturedRight)
+                cv2.imshow(leftWindowName, capturedLeft)
 
                 saveKey = cv2.waitKey(0) & 0xFF
                 if saveKey == ord('s'):
                     COUNT = COUNT + 1
-                    cv2.imwrite(f'images/left/imageL{COUNT}.png', frameLeft)
-                    cv2.imwrite(f'images/right/imageR{COUNT}.png', frameRight)
+                    cv2.imwrite(os.path.join(mainDir,subDirs[0],f"imageL{COUNT}.png"), frameLeft)
+                    cv2.imwrite(os.path.join(mainDir,subDirs[1],f"imageR{COUNT}.png"), frameRight)
 
-                cv2.destroyWindow('capturedRightFrame')
-                cv2.destroyWindow('capturedLeftFrame')
+                cv2.destroyWindow(rightWindowName)
+                cv2.destroyWindow(leftWindowName)
 
 
             if COUNT == 10:
@@ -103,3 +146,8 @@ class ImageCapturer():
 
         capRight.release()
         capLeft.release()
+
+
+
+ImageCapturer.clear()
+ImageCapturer.captureCalibrationImages()
