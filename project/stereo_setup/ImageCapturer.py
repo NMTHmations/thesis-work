@@ -1,14 +1,4 @@
-from enum import StrEnum
-
-import cv2
-import glob, os
-
-
-class DirPaths(StrEnum):
-    MAINDIR = "images"
-    LEFTDIR = "left"
-    RIGHTDIR = "right"
-
+from . import *
 
 """
 Recommended to use like the following 
@@ -33,9 +23,6 @@ class ImageCapturer():
     def clear():
 
         files = []
-
-        mainDir = str(DirPaths.MAINDIR)
-        subDirs = [str(DirPaths.LEFTDIR), str(DirPaths.RIGHTDIR)]
 
         if os.path.exists(mainDir):
             for subDir in subDirs:
@@ -69,9 +56,6 @@ class ImageCapturer():
     """
     @staticmethod
     def captureCalibrationImages():
-
-        mainDir = str(DirPaths.MAINDIR)
-        subDirs = [str(DirPaths.LEFTDIR), str(DirPaths.RIGHTDIR)]
 
         def create_dirs():
 
