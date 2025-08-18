@@ -1,7 +1,5 @@
-import os
-import DirPaths
-from glob import glob
-import cv2
+from DirPaths import *
 
 mainDir = str(DirPaths.MAINDIR)
 subDirs = [str(DirPaths.LEFTDIR), str(DirPaths.RIGHTDIR)]
+paramsDir = str(DirPaths.PARAMETERSDIR)

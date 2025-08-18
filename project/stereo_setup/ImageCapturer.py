@@ -1,4 +1,8 @@
-from . import *
+import glob
+import os
+import cv2
+
+from __init__ import *
 
 """
 Recommended to use like the following 
@@ -76,7 +80,8 @@ class ImageCapturer():
         create_dirs()
 
         capRight = cv2.VideoCapture(0)
-        capLeft = cv2.VideoCapture(1)
+        #capLeft = cv2.VideoCapture(1)
+        capLeft = capRight
 
 
         if not capRight.isOpened():
@@ -120,6 +125,7 @@ class ImageCapturer():
                     cv2.imwrite(os.path.join(mainDir,subDirs[0],f"imageL{COUNT}.png"), frameLeft)
                     cv2.imwrite(os.path.join(mainDir,subDirs[1],f"imageR{COUNT}.png"), frameRight)
 
+                print("Pictures saved")
                 cv2.destroyWindow(rightWindowName)
                 cv2.destroyWindow(leftWindowName)
 
@@ -130,8 +136,3 @@ class ImageCapturer():
 
         capRight.release()
         capLeft.release()
-
-
-
-ImageCapturer.clear()
-ImageCapturer.captureCalibrationImages()
