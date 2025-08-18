@@ -1,9 +1,10 @@
 import cv2
-from ballDetector import BallDetector
+from ballDetector import *
 import numpy as np
 
-model_path = "../models/yolo11l.engine"
-source = "../sources/vid/penalty_frombehind.mp4"
+model_path = "../models/yolo11n.engine"
+#model_path = "experiment-sxxxi/1"
+source = "../sources/vid/real4.mp4"
 #source = None
 
 def main():
@@ -12,11 +13,12 @@ def main():
         - Displays the original, grayscale, and detection output.
     """
 
-    balldetector = BallDetector(model_path)
+    balldetector = BallDetector_YOLO_CV2(model_path)
+    #balldetector = BallDetector_SV_RF(model_path)
 
     windowSize = (1280, 720)
 
-    tracker = cv2.TrackerMOUSSE_create
+    #tracker = cv2.TrackerMOUSSE_create
 
     cv2.namedWindow("live", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("live", windowSize[0], windowSize[1])
@@ -41,7 +43,7 @@ def main():
         """
 
         cv2.imshow("live", rawFrame)
-        cv2.imshow("gray", grayscaleFrame)
+        #cv2.imshow("gray", grayscaleFrame)
         cv2.imshow("detect", detectedFrame)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
