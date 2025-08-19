@@ -3,17 +3,6 @@ import supervision as sv
 from inference.models.utils import get_model
 
 source = "../sources/vid/ballpassing2.mp4"
-video_info = sv.VideoInfo.from_video_path(source)
-
-def fill_undetected(detections : list):
-    for i in range(len(detections)):
-        if detections[i].xyxy.size == 0:
-            if detections[i-1].size != 0 and detections[i+1].size != 0:
-                #prevLength, prevHeight = calculate_len_height(detections[i-1].xyxy)
-
-                detections[i].xyxy = detections[i-1].xyxy
-
-
 
 def main():
     model = get_model("experiment-sxxxi/1", api_key="PlEVRUdW9e6KwDkUHIX6")
@@ -60,5 +49,4 @@ def main():
 
 
 if __name__ == '__main__':
-    print(video_info)
     main()
