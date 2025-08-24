@@ -1,4 +1,6 @@
 import threading
+import time
+
 import supervision as sv
 import cv2
 
@@ -13,6 +15,10 @@ class VisualizerThread(threading.Thread):
 
 
     def run(self):
+        winName = f'Annotated Frame [{time.time()}]'
+        cv2.namedWindow(winName, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(winName, 1280, 720)
+
         while not self.stopEvent.is_set():
             if not self.frameQueue.empty():
                 frame = self.frameQueue.get()
@@ -27,11 +33,11 @@ class VisualizerThread(threading.Thread):
                     else:
                         annotatedFrame = annotator.annotate(frame, detections)
 
-                winName = 'Annotated Frame'
 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     self.stopEvent.set()
 
-                cv2.namedWindow(winName, cv2.WINDOW_NORMAL)
-                cv2.resizeWindow(winName, 1280, 720)
+
                 cv2.imshow(winName, annotatedFrame)
+
+        cv2.destroyAllWindows()
