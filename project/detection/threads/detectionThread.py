@@ -6,13 +6,13 @@ from ultralytics import YOLO
 import supervision as sv
 
 class DetectionThread_YOLO(threading.Thread):
-    def __init__(self, stopEvent: threading.Event, frameQueue: queue.Queue, detectionQueue: queue.Queue,modelPath: str):
+    def __init__(self, stopEvent: threading.Event, frameQueue: queue.Queue, detectionQueue: queue.Queue, model):
         super().__init__()
         self.frameQueue = frameQueue
         self.detectionQueue = detectionQueue
         self.stopEvent = stopEvent
 
-        self.model = YOLO(modelPath)
+        self.model = model
 
     def run(self):
         while not self.stopEvent.is_set():
@@ -27,13 +27,13 @@ class DetectionThread_YOLO(threading.Thread):
                     self.detectionQueue.put(detection)
 
 class DetectionThread(threading.Thread):
-    def __init__(self, stopEvent : threading.Event, frameQueue : queue.Queue, detectionQueue : queue.Queue, modelPath: str):
+    def __init__(self, stopEvent : threading.Event, frameQueue : queue.Queue, detectionQueue : queue.Queue, model):
         super().__init__()
         self.frameQueue = frameQueue
         self.detectionQueue = detectionQueue
         self.stopEvent = stopEvent
 
-        self.model = get_model(modelPath, api_key="PlEVRUdW9e6KwDkUHIX6")
+        self.model = model
 
     def run(self):
         while not self.stopEvent.is_set():
@@ -43,4 +43,4 @@ class DetectionThread(threading.Thread):
                 detection = sv.Detections.from_inference(results)
 
                 if not self.detectionQueue.full():
-                    self.detectionQueue.put(detection)
+                    self.detectionQueue.put((frame,detection))

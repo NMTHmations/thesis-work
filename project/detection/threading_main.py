@@ -2,6 +2,9 @@ import queue
 import threading
 
 import supervision as sv
+from inference import get_model
+from ultralytics import YOLO
+
 from threads import *
 
 
@@ -10,8 +13,11 @@ def main():
     source = "../sources/vid/real4.mp4"
     #source = 0
 
-    modelPath = "experiment-sxxxi/1"
-    #modelPath = "../models/yolo11l.engine"
+    modelPathInference = "experiment-sxxxi/1"
+    modelPathYOLO = "../models/yolo11l.engine"
+
+    modelYOLO = YOLO(modelPathYOLO)
+    modelInference = get_model(modelPathInference, api_key="PlEVRUdW9e6KwDkUHIX6")
 
     frameQueue = queue.Queue()
     detectionQueue = queue.Queue()
@@ -27,8 +33,9 @@ def main():
 
     threads = (
         CaptureThread(stopEvent=stopEvent,source=source, frameQueue=frameQueue),
-        DetectionThread(stopEvent=stopEvent,detectionQueue=detectionQueue, frameQueue=frameQueue, modelPath=modelPath),
-        VisualizerThread(stopEvent=stopEvent,frameQueue=frameQueue, detectionQueue=detectionQueue, annotators=annotators)
+        DetectionThread(stopEvent=stopEvent,detectionQueue=detectionQueue, frameQueue=frameQueue, model=modelInference),
+        #DetectionThread_YOLO(stopEvent=stopEvent,detectionQueue=detectionQueue, frameQueue=frameQueue, model=modelYOLO),
+        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue, annotators=annotators)
     )
 
 
