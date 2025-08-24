@@ -2,7 +2,7 @@ import cv2
 import supervision as sv
 from inference.models.utils import get_model
 
-source = "../sources/vid/ballpassing2.mp4"
+source = "../sources/vid/real4.mp4"
 
 def main():
     model = get_model("experiment-sxxxi/1", api_key="PlEVRUdW9e6KwDkUHIX6")
