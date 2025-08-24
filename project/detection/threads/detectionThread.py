@@ -43,4 +43,4 @@ class DetectionThread(threading.Thread):
                 detection = sv.Detections.from_inference(results)
 
                 if not self.detectionQueue.full():
-                    self.detectionQueue.put(detection)
+                    self.detectionQueue.put((frame,detection))
