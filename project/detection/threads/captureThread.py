@@ -1,6 +1,6 @@
 import queue
 import threading
-
+import time
 import cv2
 
 
@@ -19,6 +19,9 @@ class CaptureThread(threading.Thread):
 
             if not self.frameQueue.full():
                 self.frameQueue.put(frame)
+
+                #for camera sync, we should save timestamps
+                #self.frameQueue.put((frame,time.time()))
 
         self.cap.release()
 
