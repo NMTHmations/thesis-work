@@ -1,6 +1,5 @@
 class ThreadManager:
     def __init__(self, queues : tuple, threads : tuple):
-
         self.queues = queues
         self.threads = threads
 

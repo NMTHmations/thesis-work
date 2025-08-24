@@ -28,7 +28,7 @@ def main():
     threads = (
         CaptureThread(stopEvent=stopEvent,source=source, frameQueue=frameQueue),
         DetectionThread(stopEvent=stopEvent,detectionQueue=detectionQueue, frameQueue=frameQueue, modelPath=modelPath),
-        VisualizerThread(stopEvent=stopEvent,frameQueue=frameQueue, detectionQueue=detectionQueue, annotators=annotators)
+        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue, annotators=annotators)
     )
 
 

@@ -30,8 +30,8 @@ if __name__ == '__main__':
         CaptureThread(stopEvent=stopEvent, source=sources[1],frameQueue=frameQueue2),
         DetectionThread(stopEvent=stopEvent, detectionQueue=detectionQueue1, frameQueue=frameQueue1, modelPath=modelPath),
         DetectionThread(stopEvent=stopEvent, detectionQueue=detectionQueue2, frameQueue=frameQueue2, modelPath=modelPath),
-        VisualizerThread(stopEvent=stopEvent, frameQueue=frameQueue1, detectionQueue=detectionQueue1, annotators=annotators),
-        VisualizerThread(stopEvent=stopEvent, frameQueue=frameQueue2, detectionQueue=detectionQueue2, annotators=annotators),
+        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue1, annotators=annotators),
+        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue2, annotators=annotators),
     )
 
     pipeline = ThreadManager(threads=threads, queues=(frameQueue1, frameQueue2, detectionQueue1, detectionQueue2))
