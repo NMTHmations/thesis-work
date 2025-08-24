@@ -6,9 +6,8 @@ import cv2
 
 
 class VisualizerThread(threading.Thread):
-    def __init__(self, stopEvent : threading.Event,frameQueue, detectionQueue, annotators : tuple):
+    def __init__(self, stopEvent : threading.Event, detectionQueue, annotators : tuple):
         super().__init__()
-        self.frameQueue = frameQueue
         self.detectionQueue = detectionQueue
         self.annotators = annotators
         self.stopEvent = stopEvent
@@ -20,11 +19,10 @@ class VisualizerThread(threading.Thread):
         cv2.resizeWindow(winName, 1280, 720)
 
         while not self.stopEvent.is_set():
-            if not self.frameQueue.empty():
-                frame = self.frameQueue.get()
-                detections = self.detectionQueue.get()
+            if not self.detectionQueue.empty():
+                frame, detections = self.detectionQueue.get()
 
-                annotatedFrame = frame
+                annotatedFrame = frame.copy()
 
                 for annotator in self.annotators:
                     if isinstance(annotator, sv.LabelAnnotator):
