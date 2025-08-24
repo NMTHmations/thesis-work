@@ -33,7 +33,6 @@ class DetectionThread(threading.Thread):
         self.detectionQueue = detectionQueue
         self.stopEvent = stopEvent
 
-        self.model = get_model(modelPath, api_key="PlEVRUdW9e6KwDkUHIX6")
         self.model = model
 
     def run(self):
