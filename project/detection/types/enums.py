@@ -2,6 +2,6 @@ from enum import StrEnum
 
 
 class ThreadNames(StrEnum):
-    CAMERA = "Camera"
+    CAPTURE = "Capture"
     DETECTION = "Detection"
     VISUALIZER = "Visualizer"
