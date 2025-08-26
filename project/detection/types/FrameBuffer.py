@@ -13,6 +13,7 @@ class FrameBuffer:
         self.items: Deque[FrameItem] = deque(maxlen=maxLength)
         self.lock = threading.Lock()
         self.notEmpty = threading.Condition(self.lock)
+        self.timeout : Optional[float] = None
 
     def push(self, item: FrameItem):
         with self.lock:
@@ -24,14 +25,14 @@ class FrameBuffer:
             self.items.append(item)
             self.notEmpty.notify()
 
-    def pop_batch(self, batch_size: int, timeout: Optional[float] = None) -> List[FrameItem]:
+    def pop_batch(self, batch_size: int) -> List[FrameItem]:
 
         with self.notEmpty:
-            if timeout is None:
+            if self.timeout is None:
                 while len(self.items) == 0:
                     self.notEmpty.wait()
             else:
-                end = time.time() + timeout
+                end = time.time() + self.timeout
                 while len(self.items) == 0:
                     remaining = end - time.time()
                     if remaining <= 0:
