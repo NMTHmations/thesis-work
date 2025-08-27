@@ -8,5 +8,5 @@ class ThreadNames(StrEnum):
 
 
 class ModelTypes(StrEnum):
-    YOLO = "YOLO"
+    YOLO = "Yolo"
     INFERENCE = "Inference"
