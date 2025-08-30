@@ -111,6 +111,7 @@ def detection_frame(frame:tuple):
     detections = tracker.update_with_detections(detections) # update tracker
     detections = tracker.update_with_detections(detections1) # update tracker
     points = detections.get_anchors_coordinates(anchor=sv.Position.BOTTOM_CENTER)
+    print(points)
     speeds = speedCalculator(points, detections)
     labels = []
     for class_id, confidence, tracker_id in zip(detections.class_id, detections.confidence, detections.tracker_id):
