@@ -1,50 +1,42 @@
 import queue
 import threading
 
-import supervision as sv
-from inference import get_model
-from ultralytics import YOLO
-
 from threads import *
+from project.detection.types.FrameBuffer import FrameBuffer
+from project.detection.types.ODModel import DetectionModelFactory
+from project.detection.types.enums import ModelTypes, FrameSize
 
 
 def main():
-    #source = "../sources/vid/speed_example_720p.mp4"
-    source = "../sources/vid/real4.mp4"
-    #source = 0
+    source = 0  # vagy "../videos/test.mp4"
+    # source = "../sources/vid/speed_example_720p.mp4"
+    modelPath = "../models/yolo11l.engine"
+    # modelPath = "experiment-sxxxi/1"
+    device = 0  # GPU: 0 vagy 'cuda:0', CPU: 'cpu'
 
-    modelPathInference = "experiment-sxxxi/1"
-    modelPathYOLO = "../models/yolo11l.engine"
+    modelConfig = {
+        "modelPath": modelPath,
+        "modelType": ModelTypes.YOLO,
+        "device": device,
+    }
+    model = DetectionModelFactory.create(**modelConfig)
 
-    modelYOLO = YOLO(modelPathYOLO)
-    modelInference = get_model(modelPathInference, api_key="PlEVRUdW9e6KwDkUHIX6")
-
-    frameQueue = queue.Queue()
-    detectionQueue = queue.Queue()
-
-    queues = (frameQueue, detectionQueue)
-
-    annotators = (
-        sv.BoxAnnotator(),
-        sv.LabelAnnotator()
-    )
+    frameBuffer = FrameBuffer(maxLength=256)
+    frameBuffer.timeout = 0.15
 
     stopEvent = threading.Event()
 
+    detectionQueue = queue.Queue(maxsize=64)
+
     threads = (
-        CaptureThread(stopEvent=stopEvent,source=source, frameQueue=frameQueue),
-        DetectionThread(stopEvent=stopEvent,detectionQueue=detectionQueue, frameQueue=frameQueue, model=modelInference),
-        #DetectionThread_YOLO(stopEvent=stopEvent,detectionQueue=detectionQueue, frameQueue=frameQueue, model=modelYOLO),
-        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue, annotators=annotators)
+        CaptureThread(stopEvent=stopEvent, source=source, frameBuffer=frameBuffer),
+        DetectionThread(stopEvent=stopEvent, frameBuffer=frameBuffer, detectionQueue=detectionQueue, model=model, batchSize=1),
+        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue)
     )
 
+    threadManager = ThreadManager(stopEvent=stopEvent, threads=threads)
+    threadManager.start()
+    threadManager.join()
 
-    threadmanager = ThreadManager(queues=queues, threads=threads)
-
-    threadmanager.start()
-    threadmanager.join()
-
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
