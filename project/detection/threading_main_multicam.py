@@ -1,40 +1,45 @@
 import queue
 import threading
-import supervision as sv
 
 from threads import *
+from project.detection.types.FrameBuffer import FrameBuffer
+from project.detection.types.ODModel import DetectionModelFactory
+from project.detection.types.enums import ModelTypes, FrameSize
 
-if __name__ == '__main__':
+
+def main():
+    source = 0  # vagy "../videos/test.mp4"
     # source = "../sources/vid/speed_example_720p.mp4"
-    #source = "../sources/vid/real4.mp4"
-    sources = ["../sources/vid/real4.mp4", "../sources/vid/real5.mp4"]
-    # source = 0
+    modelPath = "../models/yolo11l.engine"
+    # modelPath = "experiment-sxxxi/1"
+    device = 0  # GPU: 0 vagy 'cuda:0', CPU: 'cpu'
 
-    modelPath = "experiment-sxxxi/1"
-    # modelPath = "../models/yolo11l.engine"
+    modelConfig = {
+        "modelPath": modelPath,
+        "modelType": ModelTypes.YOLO,
+        "device": device,
+    }
+    modelL = DetectionModelFactory.create(**modelConfig)
+    modelR = DetectionModelFactory.create(**modelConfig)
 
-    frameQueue1 = queue.Queue()
-    frameQueue2 = queue.Queue()
-    detectionQueue1 = queue.Queue()
-    detectionQueue2 = queue.Queue()
+    frameBufferL = FrameBuffer(maxLength=256)
+    frameBufferR = FrameBuffer(maxLength=256)
+
+    frameBufferL.timeout = 0.15
+    frameBufferR.timeout = 0.15
 
     stopEvent = threading.Event()
 
-    annotators = (
-        sv.BoxAnnotator(),
-        sv.LabelAnnotator()
-    )
+    detectionQueueL = queue.Queue(maxsize=64)
+    detectionQueueR = queue.Queue(maxsize=64)
 
     threads = (
-        CaptureThread(stopEvent=stopEvent, source=sources[0], frameQueue=frameQueue1),
-        CaptureThread(stopEvent=stopEvent, source=sources[1],frameQueue=frameQueue2),
-        DetectionThread(stopEvent=stopEvent, detectionQueue=detectionQueue1, frameQueue=frameQueue1, modelPath=modelPath),
-        DetectionThread(stopEvent=stopEvent, detectionQueue=detectionQueue2, frameQueue=frameQueue2, modelPath=modelPath),
-        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue1, annotators=annotators),
-        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueue2, annotators=annotators),
+        #TODO(IMPLEMENT)
     )
 
-    pipeline = ThreadManager(threads=threads, queues=(frameQueue1, frameQueue2, detectionQueue1, detectionQueue2))
+    threadManager = ThreadManager(stopEvent=stopEvent, threads=threads)
+    threadManager.start()
+    threadManager.join()
 
-    pipeline.start()
-    pipeline.join()
+if __name__ == "__main__":
+    main()
