@@ -1,74 +1,51 @@
 import queue
 import threading
+import traceback
 from typing import List, Tuple, Optional
 
 import cv2
-from inference import get_model
-from supervision.annotators.base import BaseAnnotator
-from ultralytics import YOLO
 import supervision as sv
 
-from project.detection.types.FrameBuffer import FrameBuffer
-from project.detection.types.FrameItem import FrameItem
+
+from project.detection.types.FrameBuffer import FrameBuffer, FrameItem
 from project.detection.types.ODModel import DetectionModel
-from project.detection.types.enums import ThreadNames
+from project.detection.types.enums import ThreadNames, FrameSize
 
-
-class DetectionThread_YOLO(threading.Thread):
-    def __init__(self, stopEvent: threading.Event, frameQueue: queue.Queue, detectionQueue: queue.Queue, model):
-        super().__init__()
-        self.frameQueue = frameQueue
-        self.detectionQueue = detectionQueue
-        self.stopEvent = stopEvent
-
-        self.model = model
-
-    def run(self):
-        while not self.stopEvent.is_set():
-            if not self.frameQueue.empty():
-                frame = self.frameQueue.get()
-
-                results = self.model.track(frame)[0]
-                detection = sv.Detections.from_ultralytics(results)
-
-
-                if not self.detectionQueue.full():
-                    self.detectionQueue.put(detection)
 
 class DetectionThread(threading.Thread):
     def __init__(
-            self,
-            stopEvent : threading.Event,
-            frameBuffer : FrameBuffer,
-            detectionQueue : queue.Queue,
-            model : DetectionModel,
-            originalFrameSize : Tuple[int, int],
-            annotators : Optional[List[BaseAnnotator]] | Optional[Tuple[BaseAnnotator]] | Optional[BaseAnnotator],
-            batchSize : int = 5,
+        self,
+        stopEvent: threading.Event,
+        frameBuffer : FrameBuffer,
+        detectionQueue: queue.Queue,
+        model : DetectionModel,
+        batchSize: int = 5,
+        inputDimension: int = FrameSize.INPUTDIM,
     ):
-
-        super().__init__()
+        super().__init__(daemon=True)
         self.stopEvent = stopEvent
         self.frameBuffer = frameBuffer
         self.detectionQueue = detectionQueue
         self.batchSize = batchSize
+        self.inputDimension = inputDimension
+
         self.model = model
 
-        #(Width,Height)
-        self.originalFrameSize = originalFrameSize
+        self.boxAnnotator = sv.BoxAnnotator()
+        self.labelAnnotator = sv.LabelAnnotator()
 
-        if annotators is None:
-            self.annotators = sv.BoxAnnotator
-        else:
-            self.annotators = annotators
+    def _preprocessFrames(self, frames : List[FrameItem], imgSize: Tuple[int, int]) -> List[FrameItem]:
+        items = []
+        for frameItem in frames:
+            processed = cv2.resize(frameItem.frame, imgSize)
+            items.append(processed)
+
+        return items
 
     def run(self):
-        print(f"{ThreadNames.DETECTION} Started.")
-        boxAnnotator = sv.BoxAnnotator()
-
+        print(f"[{ThreadNames.DETECTION}] Thread started")
         if self.model is None:
-            print(f"[{ThreadNames.DETECTION}] No model loaded")
-            self.stopEvent.set()
+            print(f"[{ThreadNames.DETECTION}] No model loaded, exiting")
             return
 
         while not self.stopEvent.is_set():
@@ -78,38 +55,31 @@ class DetectionThread(threading.Thread):
                 continue
 
             originalBatch = items
-            preprocessedBatch = self._preprocessFrames(items)
+            batchImages = self._preprocessFrames(items, (self.inputDimension, self.inputDimension))
 
-            results = None
             try:
-                results = self.model.batch_infer(preprocessedBatch)
+                results = self.model.batch_infer(batchImages)
             except Exception as e:
                 print(f"[{ThreadNames.DETECTION}] Inference failed:", e)
-                for original in originalBatch:
-                    if not self.detectionQueue.full():
-                        self.detectionQueue.put(original)
+                traceback.print_exc()
                 continue
 
-            for original, result in zip(originalBatch, results):
-                detections = self.model.getDetectionFromResult(result, originalWH=self.originalFrameSize)
+            for it, result in zip(originalBatch, results):
+                orig_h, orig_w = it.frame.shape[:2]
 
-                annotated = original.frame.copy()
+                detections = self.model.getDetectionFromResult(result, originalWH=(orig_w,orig_h))
 
-                annotated = boxAnnotator.annotate(annotated, detections)
+                annotated = it.frame.copy()
+                try:
+                    annotated = self.boxAnnotator.annotate(annotated, detections)
+                    labels = [f"{c}:{round(s,2)}" for c, s in zip(detections.class_id, detections.confidence)]
+                    annotated = self.labelAnnotator.annotate(annotated, detections, labels)
+                except Exception as e:
+                    print(f"[{ThreadNames.DETECTION}] Annotation failed:", e)
+                    traceback.print_exc()
+                    continue
 
                 if not self.detectionQueue.full():
-                    self.detectionQueue.put(annotated)
+                    self.detectionQueue.put((it.frameID, annotated))
 
-        print(f"[{ThreadNames.DETECTION}] Finished]")
-
-
-
-
-
-    def _preprocessFrames(self, frames : List[FrameItem], imgSize: Tuple = (640,640)):
-        items = []
-        for frameItem in frames:
-            processed = cv2.resize(frameItem.frame, imgSize)
-            items.append(processed)
-
-        return items
+        print(f"[{ThreadNames.DETECTION}] Thread stopped")

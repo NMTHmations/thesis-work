@@ -1,4 +1,4 @@
-from enum import StrEnum
+from enum import StrEnum, IntEnum
 
 
 class ThreadNames(StrEnum):
@@ -10,3 +10,7 @@ class ThreadNames(StrEnum):
 class ModelTypes(StrEnum):
     YOLO = "Yolo"
     INFERENCE = "Inference"
+
+
+class FrameSize(IntEnum):
+    INPUTDIM = 640

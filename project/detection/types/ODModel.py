@@ -5,7 +5,7 @@ import numpy as np
 import supervision as sv
 from inference.core.workflows.core_steps.common.query_language.operations import detections
 
-from project.detection.types.enums import ModelTypes
+from project.detection.types.enums import ModelTypes, FrameSize
 
 
 class DetectionModel:
@@ -25,7 +25,7 @@ class DetectionModel:
         try:
             xy = np.array(det.xyxy)
             #640 + 1, because frames got resized at 640x640
-            if xy.size and xy.max() <= 641:
+            if xy.size and xy.max() <= FrameSize.INPUTDIM + 1:
                 det.xyxy = self._mapDetectionsToOriginal(xy, originalWH)
         except Exception:
             return det
@@ -34,8 +34,9 @@ class DetectionModel:
 
     def _mapDetectionsToOriginal(self, xyxy, originalWH : Tuple[int,int]):
         width, height = originalWH
-        scaleX = width/640.0
-        scaleY = height/640.0
+        inputDimension = float(FrameSize.INPUTDIM)
+        scaleX = width/inputDimension
+        scaleY = height/inputDimension
 
         xyxy[:, [0, 2]] = xyxy[:, [0, 2]] * scaleX
         xyxy[:, [1, 3]] = xyxy[:, [1, 3]] * scaleY
@@ -50,12 +51,15 @@ class DetectionModelFactory:
     def create(**kwargs) -> DetectionModel:
         modelType = kwargs["modelType"]
         modelPath = kwargs["modelPath"]
+
         if modelType == ModelTypes.YOLO:
             device = kwargs["device"]
             return YOLOModel(modelPath=modelPath, device=device, inferenceImgSize=640)
+
         elif modelType == ModelTypes.INFERENCE:
             apiKey = kwargs["apiKey"]
             return RoboflowModel(modelPath=modelPath, apiKey=apiKey)
+
         else:
             raise ValueError("Unknown model type")
 
@@ -75,7 +79,7 @@ class YOLOModel(DetectionModel):
             self.device = device
 
         if inferenceImgSize is None:
-            self.inferenceImgSize = 640
+            self.inferenceImgSize = FrameSize.INPUTDIM
         else:
             self.inferenceImgSize = inferenceImgSize
 
@@ -89,11 +93,11 @@ class YOLOModel(DetectionModel):
 
     def getDetectionFromResult(self, result, originalWH : Optional[Tuple[int,int]]) -> sv.Detections:
         if originalWH is None:
-            originalWH = (640,640)
+            originalWH = (FrameSize.INPUTDIM,FrameSize.INPUTDIM)
 
-        det = sv.Detections.from_ultralytics(result)
+        detection = sv.Detections.from_ultralytics(result)
 
-        return self._remapDetectionsIfNeeded(det, originalWH)
+        return self._remapDetectionsIfNeeded(detection, originalWH)
 
 
 class RoboflowModel(DetectionModel):
@@ -110,7 +114,7 @@ class RoboflowModel(DetectionModel):
 
     def getDetectionFromResult(self, result, originalWH : Optional[Tuple[int,int]]) -> sv.Detections:
         if originalWH is None:
-            originalWH = (640,640)
+            originalWH = (FrameSize.INPUTDIM,FrameSize.INPUTDIM)
 
         det = sv.Detections.from_inference(result)
 
