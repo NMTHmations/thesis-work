@@ -13,6 +13,9 @@ from project.detection.types.enums import ThreadNames, FrameSize
 
 
 class DetectionThread(threading.Thread):
+    """
+    A dedicated thread to perform object detection on video frames.
+    """
     def __init__(
         self,
         stopEvent: threading.Event,
@@ -34,7 +37,14 @@ class DetectionThread(threading.Thread):
         self.boxAnnotator = sv.BoxAnnotator()
         self.labelAnnotator = sv.LabelAnnotator()
 
+
     def _preprocessFrames(self, frames : List[FrameItem], imgSize: Tuple[int, int]) -> List[FrameItem]:
+        """
+        Performs frame preprocessing to speed up object detection.
+        :param frames: A list of frame items.
+        :param imgSize: Target image size.
+        :return: A list of resized frames.
+        """
         items = []
         for frameItem in frames:
             processed = cv2.resize(frameItem.frame, imgSize)

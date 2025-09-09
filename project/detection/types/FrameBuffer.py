@@ -7,8 +7,10 @@ from project.detection.types.FrameItem import FrameItem
 
 
 class FrameBuffer:
-
-    def __init__(self, maxLength: int = 512):
+    """
+    A class representing a thread safe data structure to store video frames.
+    """
+    def __init__(self, maxLength: int = 128):
         #Deque for O(1) methods
         self.items: Deque[FrameItem] = deque(maxlen=maxLength)
         self.lock = threading.Lock()
@@ -18,7 +20,7 @@ class FrameBuffer:
     def push(self, item: FrameItem):
         with self.lock:
 
-            #A legrégebbi frameket eldobjuk
+            #Dropping the oldest frames
             if len(self.items) == self.items.maxlen:
                 self.items.popleft()
 
@@ -39,7 +41,7 @@ class FrameBuffer:
                         return []
                     self.notEmpty.wait(remaining)
 
-            # most van legalább egy elem
+            #Now we have at least one element
             batch = []
             while len(batch) < batch_size and len(self.items) > 0:
                 batch.append(self.items.popleft())

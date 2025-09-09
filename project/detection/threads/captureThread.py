@@ -7,6 +7,11 @@ from project.detection.types.enums import ThreadNames
 
 
 class CaptureThread(threading.Thread):
+    """
+    A dedicated thread to capture frames from a video source.
+    Pushing them into a shared FrameBuffer.
+
+    """
     def __init__(
             self,
             stopEvent: threading.Event,
@@ -29,7 +34,9 @@ class CaptureThread(threading.Thread):
             self.stopEvent.set()
             return
 
+        #Main loop for frame capturing
         while not self.stopEvent.is_set():
+
             ret, frame = self.cap.read()
             if not ret:
                 print(f"[{ThreadNames.CAPTURE}] No frame (end of video or camera error).")
@@ -39,7 +46,7 @@ class CaptureThread(threading.Thread):
             item = FrameItem(frameID=self.frameID, frame=frame, timestamp=time.time())
             self.frameBuffer.push(item)
 
-            # magas fps esetén hogy ne terheljük túl a buffert
+            # Optional: Uncomment to throttle capture speed if FPS is too high
             # time.sleep(0.001)
 
         self.cap.release()
