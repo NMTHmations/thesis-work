@@ -3,7 +3,6 @@ from typing import Optional, Tuple
 
 import numpy as np
 import supervision as sv
-from inference.core.workflows.core_steps.common.query_language.operations import detections
 
 from project.detection.types.enums import ModelTypes, FrameSize
 
@@ -77,7 +76,6 @@ class YOLOModel(DetectionModel):
             self.device = "cpu"
         else:
             self.device = device
-
         if inferenceImgSize is None:
             self.inferenceImgSize = FrameSize.INPUTDIM
         else:
