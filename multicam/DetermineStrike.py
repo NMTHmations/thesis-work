@@ -10,7 +10,7 @@ class DetermineStrike:
     def __init__(self,start,end,path = None,device = None,debug:bool = False,
                  acceptStart:tuple = None,acceptEnd:tuple = None,
                  lowerHSV:list=None, upperHSV:list = None):
-        self.modelPath = "experiment-sxxxi/1"
+        self.modelPath = "experiment-with-video-frames-po1wn/1"
         self.model = None
         if path == None or device == None:
             self.model = get_model(self.modelPath, api_key="PlEVRUdW9e6KwDkUHIX6")
@@ -71,23 +71,32 @@ class DetermineStrike:
                 minimum = point
         return [minimum]
     
-    def detectFrame(self,frame:tuple):
-        # albumentations usage
+    def _albumentImage(self,frame):
         blur_image = abm.OneOf([
             abm.MotionBlur(p=0.6),
             abm.GaussianBlur(p=0.6)
-        ], p=0.4)
+            ], p=0.4)
         transformed = blur_image(image=frame)
-        img = transformed["image"]
-        results = self.model.infer(frame)[0] # run inference
+        frame = transformed["image"]
+        return frame
+    
+    def _getDebugListPoint(self,lista,frame):
+        points, thresh = self._getMask(self.lowerHSV,self.upperHSV,1,frame=frame)
+        cv2.imshow("threshold",thresh)
+        lista = lista + self._getBottom(points)
+        return lista
+    
+    def detectFrame(self,frame:tuple, albumentation:bool = False):
+        is_goal = False
+        if albumentation:
+            frame = self._albumentImage(frame)
+        results = self.model.infer(frame, confidence=0.01)[0] # run inference
         detections = sv.Detections.from_inference(results) # get detections
         detections = self.tracker.update_with_detections(detections) # update tracker
         points = detections.get_anchors_coordinates(anchor=sv.Position.BOTTOM_CENTER)
         lista = points.tolist()
         if self.isDebug:
-            points, thresh = self._getMask(self.lowerHSV,self.upperHSV,1,frame=frame)
-            cv2.imshow("threshold",thresh)
-            lista = lista + self._getBottom(points)
+            lista = self._getDebugListPoint(lista,frame)
         if (len(lista) != 0):
             print(lista)
             X, Y = lista[0]
@@ -109,47 +118,13 @@ class DetermineStrike:
                     y1 = int(p(x1))
                     cross, points = self._getIntersection((int(x),int(y)),(x1,y1),self.acceptStart,self.acceptEnd)
                     if cross:
-                        print("Goal!")
+                        is_goal = True
                 cv2.circle(frame,(int(x),int(y)),5,(255,0,255),cv2.FILLED)
         cv2.line(frame,self.acceptStart,self.acceptEnd,(0,255,0),2)
         frame = self.box_annotator.annotate(scene=frame, detections=detections)
         frame = self.trace_annotator.annotate(scene=frame, detections=detections)
-        return frame
+        return frame, is_goal
     
     def flushPositions(self):
         self.PositionX = []
         self.positionY = []
-
-
-cap = cv2.VideoCapture("multicam/real4.mp4")
-
-if not cap.isOpened():
-    print("Error: Could not open video.")
-    exit()
-
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-strikeEstimater = DetermineStrike(50,540,acceptStart=(150,250),acceptEnd=(150,100),
-                                  lowerHSV=[10,108,28],upperHSV=[17,221,224],debug=True)
-
-coordinates = defaultdict(lambda: deque(maxlen=int(cap.get(cv2.CAP_PROP_FPS))))
-
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        cap.set(cv2.CAP_PROP_POS_FRAMES,0)
-        strikeEstimater.flushPositions()
-        continue
-    frame = cv2.resize(frame, (640,384)) # resize frame
-    if not ret:
-        print("Error: Could not read frame.")
-        break
-    frame = strikeEstimater.detectFrame(frame) # run detection
-    cv2.imshow("YOLOv5 Detection", frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
