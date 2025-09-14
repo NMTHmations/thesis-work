@@ -129,10 +129,23 @@ class StereoCalibrator():
         return objPoints, imgPoints
 
     #yet to implement
-    def saveParams(self, *params, path = os.path.join(paramsDir, 'calibration.npz')):
+    def saveStereoMaps(self, params : tuple, path = os.path.join(paramsDir, 'calibration.xml')):
         print(f"Saving parameters to {path}")
-        pass
+        cvFile = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
 
+
+        stereomapLeft = params[0]
+        stereomapRight = params[1]
+
+        stL_x, stL_y = stereomapLeft
+        stR_x, stR_y = stereomapRight
+
+        cvFile.write("stereoMapL_x", stL_x)
+        cvFile.write("stereoMapL_y", stL_y)
+        cvFile.write("stereoMapR_x", stR_x)
+        cvFile.write("stereoMapR_y", stR_y)
+
+        cvFile.release()
 
     #yet to implement
     def removeDistortion(self):
