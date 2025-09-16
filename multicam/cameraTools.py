@@ -11,9 +11,11 @@ class CameraTools():
 os.environ["QT_QPA_PLATFORM"] = "xcb"
 
 cap = cv2.VideoCapture("/dev/video0")
-#cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'YUYV'))
+cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+cap.set(cv2.CAP_PROP_FPS,120)
 #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+print(f"FPS: {cap.get(cv2.CAP_PROP_FPS)}")
 if not cap.isOpened():
     print("Error happened!")
     exit(2)
