@@ -8,7 +8,7 @@ import os
 
 
 # Load model
-hef_path = "hailort/ball-detection--640x640_quant_hailort_multidevice_1.hef"
+hef_path = "hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef"
 platform = hailo_platform.HEF(hef_source=hef_path)
 
 with hailo_platform.VDevice() as target:
@@ -56,7 +56,7 @@ with hailo_platform.VDevice() as target:
                     cap.set(cv2.CAP_PROP_POS_FRAMES,0)
                     continue
                 frame = cv2.resize(frame, (640,480))
-                input_data = frame.astype(np.float32)
+                input_data = frame.astype(np.uint8)
                 input_data = np.expand_dims(input_data, 0)
                 input_name = platform.get_input_vstream_infos()[0].name
                 inputs = {input_name: input_data}
