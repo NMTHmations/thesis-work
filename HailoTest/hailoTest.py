@@ -1,3 +1,4 @@
+import traceback
 import hailo_platform
 import hailo_platform.pyhailort
 import hailo_platform.pyhailort._pyhailort
@@ -5,11 +6,68 @@ from hailo_platform.pyhailort.pyhailort import InferModel
 import numpy as np
 import cv2
 import os
+import supervision as sv
 
+def extract_detections(output:list, h: int, w: int, threshold: float = 0.35):
+    xyxy = []
+    confidence = []
+    class_id = []
+    num_detections = 0
+
+    for i, detections in enumerate(output):
+        if len(detections) == 0:
+            continue
+        for detection in detections:
+            if len(detection) == 0:
+                continue
+            fdetection = detection[0]
+            bbox, score = fdetection[:4], fdetection[4]
+
+            if float(score) < threshold:
+                continue
+
+            bbox[0], bbox[1], bbox[2], bbox[3] = (
+                float(bbox[1]) * w,
+                float(bbox[0]) * h,
+                float(bbox[3]) * w,
+                float(bbox[2])  * h,
+            )
+
+            xyxy.append(bbox)
+            confidence.append(score)
+            class_id.append(i)
+            num_detections += 1
+    
+    return {
+        "xyxy": np.array(xyxy),
+        "confidence": np.array(confidence),
+        "class_id": np.array(class_id),
+        "num_detections": num_detections
+    }
+
+def process_detections(frame, detections: dict, class_names: list, tracker: sv.ByteTrack, 
+                       box_annotator: sv.BoxAnnotator, label_annotator: sv.LabelAnnotator):
+    if len(detections['xyxy']) == 0:
+        return frame
+    sv_detections = sv.Detections(xyxy=detections["xyxy"],
+                                  confidence=detections["confidence"],
+                                  class_id=detections["class_id"])
+    
+    sv_detections = tracker.update_with_detections(sv_detections)
+
+    labels = [f"{cls} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
+
+    annotated_frame = box_annotator.annotate(scene=frame,detections=sv_detections)
+
+    annotated_frame = label_annotator.annotate(scene=annotated_frame,detections=sv_detections,labels=labels)
+    return annotated_frame
 
 # Load model
 hef_path = "hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef"
 platform = hailo_platform.HEF(hef_source=hef_path)
+annotator = sv.BoxAnnotator()
+label = sv.LabelAnnotator()
+tracker = sv.ByteTrack()
 
 with hailo_platform.VDevice() as target:
     try:
@@ -44,6 +102,7 @@ with hailo_platform.VDevice() as target:
             #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             print(f"FPS: {cap.get(cv2.CAP_PROP_FPS)}")
+            class_names = ['Ball','Football']
             if not cap.isOpened():
                 print("Error happened!")
                 exit(2)
@@ -61,10 +120,15 @@ with hailo_platform.VDevice() as target:
                 input_name = platform.get_input_vstream_infos()[0].name
                 inputs = {input_name: input_data}
                 try:
-                    with hailo_platform.InferVStreams(network_group,ivsp,ovsp) as pipeline:
+                    with hailo_platform.InferVStreams(network_group,ivsp,ovsp, False) as pipeline:
                         output = pipeline.infer(input_data)
-                except:
+                        print(output)
+                        detections = extract_detections(output['best_v8/yolov8_nms_postprocess'],cap.get(cv2.CAP_PROP_FRAME_HEIGHT),cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                        new_frame = process_detections(frame,detections,class_names,tracker,annotator,label)
+                        cv2.imshow("Test Image", new_frame)
+                except Exception as e:
+                    print(e)
+                    traceback.print_exc()
                     print ("InferVStreams of pipeline infer not working")
-                cv2.imshow("Test Image", frame)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
