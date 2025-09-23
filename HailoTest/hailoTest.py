@@ -23,7 +23,9 @@ def extract_detections(output:list, h: int, w: int, threshold: float = 0.05):
             fdetection = detection[0]
             bbox, score = fdetection[:4], fdetection[4]
 
-            if float(score) < threshold:
+            print(score)
+
+            if score < np.float32(threshold):
                 continue
 
             bbox[0], bbox[1], bbox[2], bbox[3] = (
@@ -54,9 +56,13 @@ def process_detections(frame: np.ndarray, detections: dict, class_names: list, t
                                   confidence=detections["confidence"],
                                   class_id=detections["class_id"])
     
+    print(sv_detections)
+    
     sv_detections = tracker.update_with_detections(sv_detections)
 
-    print(sv_detections)
+    #print(sv_detections)
+
+    #print(sv_detections)
 
     labels = [f"{class_names[cls]} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
 
@@ -72,7 +78,7 @@ hef_path = "hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef"
 platform = hailo_platform.HEF(hef_source=hef_path)
 annotator = sv.BoxAnnotator()
 label = sv.LabelAnnotator()
-tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=0.8)
+tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1)
 
 with hailo_platform.VDevice() as target:
     try:
