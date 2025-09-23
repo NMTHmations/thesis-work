@@ -8,7 +8,7 @@ import cv2
 import os
 import supervision as sv
 
-def extract_detections(output:list, h: int, w: int, threshold: float = 0.35):
+def extract_detections(output:list, h: int, w: int, threshold: float = 0.05):
     xyxy = []
     confidence = []
     class_id = []
@@ -27,25 +27,26 @@ def extract_detections(output:list, h: int, w: int, threshold: float = 0.35):
                 continue
 
             bbox[0], bbox[1], bbox[2], bbox[3] = (
-                float(bbox[1]) * w,
-                float(bbox[0]) * h,
-                float(bbox[3]) * w,
-                float(bbox[2])  * h,
-            )
+                bbox[1] * w,
+                bbox[0] * h,
+                bbox[3] * w,
+                bbox[2] * h,
+            ) 
 
             xyxy.append(bbox)
             confidence.append(score)
             class_id.append(i)
             num_detections += 1
     
+    print(xyxy)
     return {
         "xyxy": np.array(xyxy),
-        "confidence": np.array(confidence),
+        "confidence": np.array(confidence, dtype=np.float32),
         "class_id": np.array(class_id),
         "num_detections": num_detections
     }
 
-def process_detections(frame, detections: dict, class_names: list, tracker: sv.ByteTrack, 
+def process_detections(frame: np.ndarray, detections: dict, class_names: list, tracker: sv.ByteTrack, 
                        box_annotator: sv.BoxAnnotator, label_annotator: sv.LabelAnnotator):
     if len(detections['xyxy']) == 0:
         return frame
@@ -55,9 +56,13 @@ def process_detections(frame, detections: dict, class_names: list, tracker: sv.B
     
     sv_detections = tracker.update_with_detections(sv_detections)
 
-    labels = [f"{cls} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
+    print(sv_detections)
 
-    annotated_frame = box_annotator.annotate(scene=frame,detections=sv_detections)
+    labels = [f"{class_names[cls]} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
+
+    print(labels)
+
+    annotated_frame = box_annotator.annotate(scene=frame.copy(),detections=sv_detections)
 
     annotated_frame = label_annotator.annotate(scene=annotated_frame,detections=sv_detections,labels=labels)
     return annotated_frame
@@ -67,7 +72,7 @@ hef_path = "hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef"
 platform = hailo_platform.HEF(hef_source=hef_path)
 annotator = sv.BoxAnnotator()
 label = sv.LabelAnnotator()
-tracker = sv.ByteTrack()
+tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=0.8)
 
 with hailo_platform.VDevice() as target:
     try:
@@ -99,8 +104,8 @@ with hailo_platform.VDevice() as target:
             cap = cv2.VideoCapture("multicam/real4.mp4")
             cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
             cap.set(cv2.CAP_PROP_FPS,120)
-            #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             print(f"FPS: {cap.get(cv2.CAP_PROP_FPS)}")
             class_names = ['Ball','Football']
             if not cap.isOpened():
@@ -123,9 +128,9 @@ with hailo_platform.VDevice() as target:
                     with hailo_platform.InferVStreams(network_group,ivsp,ovsp, False) as pipeline:
                         output = pipeline.infer(input_data)
                         print(output)
-                        detections = extract_detections(output['best_v8/yolov8_nms_postprocess'],cap.get(cv2.CAP_PROP_FRAME_HEIGHT),cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        new_frame = process_detections(frame,detections,class_names,tracker,annotator,label)
-                        cv2.imshow("Test Image", new_frame)
+                        detections = extract_detections(output['best_v8/yolov8_nms_postprocess'],480,640)
+                        frame = process_detections(frame,detections,class_names,tracker,annotator,label)
+                        cv2.imshow("Test Image", frame)
                 except Exception as e:
                     print(e)
                     traceback.print_exc()
