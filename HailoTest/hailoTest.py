@@ -60,10 +60,6 @@ def process_detections(frame: np.ndarray, detections: dict, class_names: list, t
     
     sv_detections = tracker.update_with_detections(sv_detections)
 
-    #print(sv_detections)
-
-    #print(sv_detections)
-
     labels = [f"{class_names[cls]} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
 
     print(labels)

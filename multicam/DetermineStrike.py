@@ -7,19 +7,12 @@ import albumentations as abm
 from inference import get_model
 
 class DetermineStrike:
-    def __init__(self,start,end,path = None,device = None,debug:bool = False,
+    def __init__(self,start,end,height:int, width:int,debug:bool = False,
                  acceptStart:tuple = None,acceptEnd:tuple = None,
                  lowerHSV:list=None, upperHSV:list = None):
-        self.modelPath = "experiment-with-video-frames-po1wn/1"
-        self.model = None
-        if path == None or device == None:
-            self.model = get_model(self.modelPath, api_key="PlEVRUdW9e6KwDkUHIX6")
-        else:
-            self.model = torch.hub.load('ultralytics/yolov5', 'custom', path=path)
-            self.model.to(device)
-        self.tracker = sv.ByteTrack() # create tracker
-        self.label_annotator = sv.LabelAnnotator() # get annotations
-        self.box_annotator = sv.BoxAnnotator() # get boxing
+        self.tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1) # create tracker
+        self.label = sv.LabelAnnotator() # get annotations
+        self.annotator = sv.BoxAnnotator() # get boxing
         self.trace_annotator = sv.TraceAnnotator() # create trace annotator
         self.xList = [i for i in range(start,end)]
         self.positionY = []
@@ -31,6 +24,9 @@ class DetermineStrike:
         self.acceptEnd = acceptEnd
         self.lowerHSV = lowerHSV
         self.upperHSV = upperHSV
+        self.height = height
+        self.width = width
+        self.class_names = ['Ball','Football']
         
     def _getIntersection(self,p1,p2,p3,p4):
         p1, p2, p3, p4 = map(np.array,(p1,p2,p3,p4))
@@ -86,19 +82,70 @@ class DetermineStrike:
         lista = lista + self._getBottom(points)
         return lista
     
-    def detectFrame(self,frame:tuple, albumentation:bool = False):
+    def extract_detections(self,output:list, h: int, w: int, threshold: float = 0.05):
+        xyxy = []
+        confidence = []
+        class_id = []
+        num_detections = 0
+
+        for i, detections in enumerate(output):
+            if len(detections) == 0:
+                continue
+            for detection in detections:
+                if len(detection) == 0:
+                    continue
+                bbox, score = detection[:4], detection[4]
+
+                if score < np.float32(threshold):
+                    continue
+
+                bbox[0], bbox[1], bbox[2], bbox[3] = (
+                    bbox[1] * w,
+                    bbox[0] * h,
+                    bbox[3] * w,
+                    bbox[2] * h,
+                ) 
+
+                xyxy.append(bbox)
+                confidence.append(score)
+                class_id.append(i)
+                num_detections += 1
+        return {
+            "xyxy": np.array(xyxy),
+            "confidence": np.array(confidence, dtype=np.float32),
+            "class_id": np.array(class_id),
+            "num_detections": num_detections
+        }
+
+    def process_detections(self,frame: np.ndarray, detections: dict, class_names: list, tracker: sv.ByteTrack, 
+                           box_annotator: sv.BoxAnnotator, label_annotator: sv.LabelAnnotator):
+        if len(detections['xyxy']) == 0:
+            return frame, np.empty((0, 2))
+        sv_detections = sv.Detections(xyxy=detections["xyxy"],
+                                      confidence=detections["confidence"],
+                                      class_id=detections["class_id"])
+
+        sv_detections = tracker.update_with_detections(sv_detections)
+
+        points = sv_detections.get_anchors_coordinates(anchor=sv.Position.BOTTOM_CENTER)
+
+        labels = [f"{class_names[cls]} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
+
+        annotated_frame = box_annotator.annotate(scene=frame.copy(),detections=sv_detections)
+
+        annotated_frame = label_annotator.annotate(scene=annotated_frame,detections=sv_detections,labels=labels)
+        return (annotated_frame, points)
+    
+    def detectFrame(self,frame:tuple, detections, albumentation:bool = False):
         is_goal = False
         if albumentation:
             frame = self._albumentImage(frame)
-        results = self.model.infer(frame, confidence=0.01)[0] # run inference
-        detections = sv.Detections.from_inference(results) # get detections
-        detections = self.tracker.update_with_detections(detections) # update tracker
-        points = detections.get_anchors_coordinates(anchor=sv.Position.BOTTOM_CENTER)
+        sv_detections = self.extract_detections(detections,self.height,self.width,0.25)
+        frame, points = self.process_detections(frame,sv_detections,self.class_names,self.tracker,self.annotator,self.label)
         lista = points.tolist()
         if self.isDebug:
             lista = self._getDebugListPoint(lista,frame)
         if (len(lista) != 0):
-            print(lista)
             X, Y = lista[0]
             self.PositionX.append(X)
             self.positionY.append(Y)
@@ -121,8 +168,6 @@ class DetermineStrike:
                         is_goal = True
                 cv2.circle(frame,(int(x),int(y)),5,(255,0,255),cv2.FILLED)
         cv2.line(frame,self.acceptStart,self.acceptEnd,(0,255,0),2)
-        frame = self.box_annotator.annotate(scene=frame, detections=detections)
-        frame = self.trace_annotator.annotate(scene=frame, detections=detections)
         return frame, is_goal
     
     def flushPositions(self):
