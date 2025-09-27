@@ -19,5 +19,5 @@ def rev_motor(item: MotorRevDuration):
         }
     motorControll.moveMotor(item.speed,item.direction,item.duration)
     return {
-        "rev duration": item.rev_count
+        "message": "ok"
     }
