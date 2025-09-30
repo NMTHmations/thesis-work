@@ -105,7 +105,6 @@ class StereoCalibrator():
         #########
 
 
-
         for fname in images:
             img = cv2.imread(fname)
 
@@ -121,7 +120,8 @@ class StereoCalibrator():
                 imgPoints.append(subCorners)
 
                 cv2.drawChessboardCorners(img, self.chessBoardSize, subCorners, cornersFound)
-                cv2.imshow("img", img)
+                resized = cv2.resize(img, (1280,720))
+                cv2.imshow("img", resized)
                 cv2.waitKey(1000)
 
         cv2.destroyAllWindows()

@@ -17,5 +17,5 @@ if __name__ == '__main__':
 
     stereoMapL, stereoMapR = sc.calibrate()
 
-    sc.saveParams((stereoMapL,stereoMapR))
+    sc.saveStereoMaps((stereoMapL,stereoMapR))
 
