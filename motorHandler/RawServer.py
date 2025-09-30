@@ -1,5 +1,6 @@
 import socket
 from motorController import motorController
+import traceback
 
 controller = motorController()
 INTERFACE = "eth0"
@@ -20,4 +21,5 @@ while True:
         parts = msg.split(';')
         controller.moveMotor(int(parts[0]), bool(parts[1]), float(parts[2]))
     except UnicodeDecodeError:
+        traceback.print_exc()
         print("Non-text payload")
