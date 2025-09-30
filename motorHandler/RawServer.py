@@ -19,7 +19,7 @@ while True:
         msg = payload.rstrip(b'\x00').strip(b'\x00').decode('utf-8', errors='ignore')
         print("Message:", msg)
         parts = msg.split(';')
-        controller.moveMotor(int(parts[0]), bool(parts[1]), float(parts[2]))
+        controller.moveMotor(int(parts[0]), bool(parts[1]), float(parts[2].strip(b'\x00')))
     except UnicodeDecodeError:
         traceback.print_exc()
         print("Non-text payload")
