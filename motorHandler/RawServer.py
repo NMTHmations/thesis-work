@@ -15,7 +15,7 @@ while True:
     payload = packet[14:]
     # strip zero padding
     try:
-        msg = payload.rstrip(b'\x00').decode()
+        msg = payload.rstrip(b'\x00').decode('utf-8')
         print("Message:", msg)
         parts = msg.split(';')
         controller.moveMotor(int(parts[0]), bool(parts[1]), float(parts[2]))
