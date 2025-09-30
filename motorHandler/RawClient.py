@@ -5,8 +5,7 @@ INTERFACE = "eth0"
 dst_mac = b'\x26\x6e\x90\x85\x4e\x9a'
 src_mac = b'\x2c\xcf\x67\x9d\x12\x4d'
 eth_type = b'\x88\xb5'
-message = b"100;True;0.1"
-payload = message.encode()
+payload = b"0;1;0.5"
 
 
 min_payload = 46
