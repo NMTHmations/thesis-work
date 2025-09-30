@@ -16,10 +16,10 @@ while True:
     payload = packet[14:]
     # strip zero padding
     try:
-        msg = payload.rstrip(b"\x00").decode('utf-8', errors='ignore')
+        msg = payload.rstrip("\x00").decode('utf-8', errors='ignore')
         print("Message:", msg)
         parts = msg.split(';')
-        controller.moveMotor(int(parts[0]), bool(parts[1]), float(parts[2].rstrip(b"\x00Rz").rstrip(b"\x00")))
+        controller.moveMotor(int(parts[0]), bool(parts[1]), float(parts[2].rstrip("\x00Rz").rstrip("\x00")))
     except UnicodeDecodeError:
         traceback.print_exc()
         print("Non-text payload")
