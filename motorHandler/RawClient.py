@@ -2,10 +2,10 @@ import socket
 import time
 
 INTERFACE = "eth0"
-dst_mac = b'\xba\x4a\x81\xb1\x09\xde'
+dst_mac = b'\x1a\x8c\x3b\x97\x66\xca'
 src_mac = b'\x2c\xcf\x67\x9d\x12\x4d'
 eth_type = b'\x88\xb5'
-payload = b"100;1;0.5"
+payload = b"25;0;0.1"
 
 
 min_payload = 46
@@ -17,7 +17,7 @@ frame = dst_mac + src_mac + eth_type + payload
 s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
 s.bind((INTERFACE, 0))
 
-count = 100
+count = 10
 delay = 0.001
 
 sent = 0
