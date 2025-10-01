@@ -20,7 +20,7 @@ while True:
         speed = int(parts[0])
         direction = bool(int(parts[1]))
         duration = float(parts[2].rsplit("\x00")[0])
-        print(f"Command: speed: {speed} direction: {"forward" if direction == True else "backwards"} duration: {duration} s",)
+        print(f"Command: speed: {speed} direction: {"forward" if direction == True else "backwards"} duration: {duration} s")
         parts = msg.split(';')
         controller.moveMotor(speed, direction, duration)
     except UnicodeDecodeError:
