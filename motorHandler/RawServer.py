@@ -17,9 +17,12 @@ while True:
     # strip zero padding
     try:
         msg = payload.rstrip(b"\x00").decode('utf-8', errors='ignore')
-        print("Message:", msg)
+        speed = int(parts[0])
+        direction = bool(int(parts[1]))
+        duration = float(parts[2].rsplit("\x00")[0])
+        print(f"Command: speed: {speed} direction: {"forward" if direction == True else "backwards"} duration: {duration} s",)
         parts = msg.split(';')
-        controller.moveMotor(int(parts[0]), bool(parts[1]), float(parts[2].rsplit("\x00")[0]))
+        controller.moveMotor(speed, direction, duration)
     except UnicodeDecodeError:
         traceback.print_exc()
         print("Non-text payload")
