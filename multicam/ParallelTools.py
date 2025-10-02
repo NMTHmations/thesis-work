@@ -1,14 +1,10 @@
-from collections import defaultdict, deque
 import time
 import cv2
-import hailo_platform
 import numpy as np
-import torch
 from DetermineStrike import DetermineStrike
 from multiprocessing import Process, Event
 from multiprocessing import Value, Queue
 from picamera2.devices import Hailo
-from hailo_platform.pyhailort.pyhailort import VDevice, HailoRTException
 
 
 class ParallelTools():
@@ -24,11 +20,6 @@ class ParallelTools():
         self.OutputSide = Queue()
         self.OutputFront = Queue()
     
-    def _setCaptures(self, cap):
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        coordinates = defaultdict(lambda: deque(maxlen=int(cap.get(cv2.CAP_PROP_FPS))))
-        return cap, coordinates
-    
     def _cameraHandler(self,source,strikeEstimaterDetails,start_event,stop_event, isSide:bool, isGoalFront, isGoalDexter):
         start_event.wait()
         strikeEstimater = DetermineStrike(**strikeEstimaterDetails)
@@ -39,7 +30,6 @@ class ParallelTools():
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         print(cap.get(cv2.CAP_PROP_FPS))
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         is_goal = False
         previous_frame = None
         previous_detections = None
