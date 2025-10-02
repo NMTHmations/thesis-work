@@ -41,36 +41,53 @@ class ParallelTools():
         print(cap.get(cv2.CAP_PROP_FPS))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         is_goal = False
+        previous_frame = None
+        previous_detections = None
+        detection_buffer = []
+
         while not stop_event.is_set():
             ret, frame = cap.read()
             if not ret:
-                cap.set(cv2.CAP_PROP_POS_FRAMES,0)
-                #strikeEstimater.flushPositions()
+                cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 continue
+            
             frame = cv2.resize(frame, (640, 480))
-            input_data = frame.astype(np.uint8)
-            input_data = np.expand_dims(input_data, 0)
+            input_data = np.expand_dims(frame.astype(np.uint8), 0)
+            timestamp = time.time()
+
             if isSide:
-                self.InputSide.put(input_data)
+                self.InputSide.put((timestamp, input_data))
             else:
-                self.InputFront.put(input_data)
-            detections = None
-            if isSide:
-                if not self.OutputSide.empty():
-                    detections = self.OutputSide.get()
+                self.InputFront.put((timestamp, input_data))
+
+            try:
+                if isSide:
+                    while True:
+                        ts, dets = self.OutputSide.get_nowait()
+                        detection_buffer.append((ts, dets))
+                else:
+                    while True:
+                        ts, dets = self.OutputFront.get_nowait()
+                        detection_buffer.append((ts, dets))
+            except:
+                pass
+            
+            matched_detections = None
+            for ts, dets in reversed(detection_buffer):
+                if abs(ts - timestamp) < 0.05:
+                    matched_detections = dets
+                    break
+                
+            if matched_detections is not None:
+                annotated_frame, is_goal = strikeEstimater.detectFrame(frame, matched_detections, False)
+                if isSide:
+                    isGoalDexter.value = is_goal
+                else:
+                    isGoalFront.value = is_goal
+                cv2.imshow("YOLOv5 Detection", annotated_frame)
             else:
-                if not self.OutputFront.empty():
-                    detections = self.OutputFront.get()
-            if detections != None:
-                frame, is_goal = strikeEstimater.detectFrame(frame,detections,False)
-            if isSide:
-                isGoalDexter.value = is_goal
-            else:
-                isGoalFront.value = is_goal
-            if not ret:
-                print("Error: Could not read frame.")
-                break
-            cv2.imshow("YOLOv5 Detection", frame)
+                cv2.imshow("YOLOv5 Detection", frame)
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 stop_event.set()
                 break
@@ -90,18 +107,23 @@ class ParallelTools():
         start_event.wait()
         HailoModel = Hailo("hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef")
         while not stop_event.is_set():
-            if not self.InputFront.empty():
-                input = self.InputFront.get()
-                output = HailoModel.run_async(input)
+            try:
+                ts_front, input_front = self.InputFront.get_nowait()
+                output = HailoModel.run_async(input_front)
                 result = output.result()
-                self.OutputFront.put(result)
-            if not self.InputSide.empty():
-                input = self.InputSide.get()
-                output = HailoModel.run_async(input)
+                self.OutputFront.put((ts_front, result))
+            except:
+                pass
+            
+            try:
+                ts_side, input_side = self.InputSide.get_nowait()
+                output = HailoModel.run_async(input_side)
                 result = output.result()
-                self.OutputSide.put(result)
-        if stop_event.is_set():
-            HailoModel.close()
+                self.OutputSide.put((ts_side, result))
+            except:
+                pass
+            
+        HailoModel.close()
 
     def CameraHandler(self):
         start_event = Event()
