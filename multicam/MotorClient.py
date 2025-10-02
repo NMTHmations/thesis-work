@@ -1,66 +1,57 @@
-import pycurl
-import requests
-from io import StringIO
-import json
+import socket
+import time
 
 class MotorClient():
     def __init__(self):
-        self.url = "http://192.168.1.3:8000/rev/"
-        self.speed = 100
-        self.c = pycurl.Curl()
-        self.c.setopt(pycurl.URL, self.url)
-        self.c.setopt(pycurl.FORBID_REUSE,False)
-        self.c.setopt(pycurl.HTTPHEADER,['Accept: application/json',
-                                    'Content-Type: application/json'])
-        self.c.setopt(pycurl.POST,1)
-        self.c.setopt(pycurl.TCP_NODELAY,1)
-        self.c.setopt(pycurl.FRESH_CONNECT, False)
-        self.c.setopt(pycurl.CONNECTTIMEOUT,2)
+        self.interface = "eth0"
+        self.dst_mac = b'\x86\x0e\x35\x1a\x8e\x88'
+        self.src_mac = b'\x2c\xcf\x67\x9d\x12\x4d'
+        self.eth_type = b'\x88\xb5'
+        self.s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
+        self.s.bind((self.interface, 0))
 
-    
-    def _sendPost(self,data):
-        json_string = json.dumps(data)
-        file_obj = StringIO(json_string)
 
-        self.c.setopt(pycurl.READDATA, file_obj)
-        self.c.setopt(pycurl.POSTFIELDSIZE, len(json_string))
+    def stepMotor(self,direction:bool):
+        payload = str()
+        if direction == False:
+            payload = b"100;0;0.1"
+        else:
+            payload = b"100;1;0.1"
 
-        self.c.perform()
-        #status_code = self.c.getinfo(pycurl.RESPONSE_CODE)
-    
-    def moveForward(self,speed:int,duration:float):
-        json_file = {
-            "speed": speed,
-            "duration":duration,
-            "direction": True
-        }
-        connection = requests.post(url=self.url,data=json.dumps(json_file))
-        connection.close()
-    
-    def moveBackward(self,speed:int,duration:float):
-        json_file = {
-            "speed": speed,
-            "duration":duration,
-            "direction": False
-        }
 
-        self._sendPost(json_file)
+        min_payload = 46
+        if len(payload) < min_payload:
+            payload = payload + b'\x00' * (min_payload - len(payload))
+
+        frame = self.dst_mac + self.src_mac + self.eth_type + payload
+
+        try:
+                n = self.s.send(frame)
+                if n == 0:
+                    print("Warning: send returned 0 bytes")
+        except:
+             print("Could not send the command to the DC motor's server!")
     
-    def stepForward(self):
-        json_file = {
-            "speed": 100,
-            "duration":0.01,
-            "direction": True
-        }
-        self._sendPost(json_file)
-    
-    def stepBackward(self):
-        json_file = {
-            "speed": 100,
-            "duration":0.05,
-            "direction": False
-        }
-        self._sendPost(json_file)
+    def moveMotor(self,speed:int,direction:bool,duration:float):
+        payload = str()
+        if direction == False:
+            payload = b"" + str(speed).encode() + b";0;" + str(duration).encode() + b""
+        else:
+            payload = b"" + str(speed).encode() + b";1;" + str(duration).encode() + b""
+
+
+        min_payload = 46
+        if len(payload) < min_payload:
+            payload = payload + b'\x00' * (min_payload - len(payload))
+
+        frame = self.dst_mac + self.src_mac + self.eth_type + payload
+
+        try:
+                n = self.s.send(frame)
+                if n == 0:
+                    print("Warning: send returned 0 bytes")
+        except:
+             print("Could not send the command to the DC motor's server!")
     
     def close(self):
-        self.c.close()
+         self.s.close()

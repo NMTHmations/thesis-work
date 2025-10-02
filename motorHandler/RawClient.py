@@ -2,10 +2,10 @@ import socket
 import time
 
 INTERFACE = "eth0"
-dst_mac = b'\x1a\x8c\x3b\x97\x66\xca'
+dst_mac = b'\x86\x0e\x35\x1a\x8e\x88'
 src_mac = b'\x2c\xcf\x67\x9d\x12\x4d'
 eth_type = b'\x88\xb5'
-payload = b"25;0;0.1"
+payload = b"55;0;0.1"
 
 
 min_payload = 46
