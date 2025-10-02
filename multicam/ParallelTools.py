@@ -38,6 +38,7 @@ class ParallelTools():
         cap.set(cv2.CAP_PROP_FPS,120)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        print(cap.get(cv2.CAP_PROP_FPS))
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         is_goal = False
         while not stop_event.is_set():
@@ -134,6 +135,6 @@ dexterStrike = {
 }
 
 if __name__ == "__main__":
-    parallel = ParallelTools("multicam/real4.mp4","multicam/real4.mp4",dexterStrike,dexterStrike)
+    parallel = ParallelTools("/dev/video0","/dev/video2",dexterStrike,dexterStrike)
     parallel.CameraHandler()
 

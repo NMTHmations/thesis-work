@@ -142,6 +142,7 @@ class DetermineStrike:
             frame = self._albumentImage(frame)
         sv_detections = self.extract_detections(detections,self.height,self.width,0.25)
         frame, points = self.process_detections(frame,sv_detections,self.class_names,self.tracker,self.annotator,self.label)
+        """
         lista = points.tolist()
         if self.isDebug:
             lista = self._getDebugListPoint(lista,frame)
@@ -167,7 +168,7 @@ class DetermineStrike:
                     if cross:
                         is_goal = True
                 cv2.circle(frame,(int(x),int(y)),5,(255,0,255),cv2.FILLED)
-        cv2.line(frame,self.acceptStart,self.acceptEnd,(0,255,0),2)
+        cv2.line(frame,self.acceptStart,self.acceptEnd,(0,255,0),2)"""
         return frame, is_goal
     
     def flushPositions(self):
