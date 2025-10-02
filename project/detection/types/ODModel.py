@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import supervision as sv
-from inference.core.workflows.core_steps.common.query_language.operations import detections
+from picamera2.devices import Hailo
 
 from project.detection.types.enums import ModelTypes, FrameSize
 
@@ -119,3 +119,16 @@ class RoboflowModel(DetectionModel):
         det = sv.Detections.from_inference(result)
 
         return self._remapDetectionsIfNeeded(det, originalWH)
+
+class HailoModel(DetectionModel):
+    def __init__(self, modelPath):
+        self.model = Hailo(modelPath)
+    def infer(self, frame):
+        results = self.model.run_async(frame)
+
+    def batch_infer(self, batch):
+        #numpy array, amiben van n-db (2) tömb azon belül 5 érték -> elő 4 bounding boxes (y1,x1,y2,x2), 5. confidence
+        results = self.model.run_async(batch)
+
+    def getDetectionFromResult(self, result, originalWH: Optional[Tuple[int, int]]) -> sv.Detections:
+        pass

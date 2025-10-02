@@ -8,9 +8,9 @@ from project.detection.types.enums import ModelTypes, FrameSize
 
 
 def main():
-    source = 0  # vagy "../videos/test.mp4"
+    source = "vid.mp4"  # vagy "../videos/test.mp4"
     # source = "../sources/vid/speed_example_720p.mp4"
-    modelPath = "../models/yolo11l.engine"
+    modelPath = "../models/yolo11l.pt"
     # modelPath = "experiment-sxxxi/1"
     device = 0  # GPU: 0 vagy 'cuda:0', CPU: 'cpu'
 
