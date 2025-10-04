@@ -10,10 +10,10 @@ class DetermineStrike:
     def __init__(self,start,end,height:int, width:int,debug:bool = False,
                  acceptStart:tuple = None,acceptEnd:tuple = None,
                  lowerHSV:list=None, upperHSV:list = None):
-        self.tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1) # create tracker
-        self.label = sv.LabelAnnotator() # get annotations
-        self.annotator = sv.BoxAnnotator() # get boxing
-        self.trace_annotator = sv.TraceAnnotator() # create trace annotator
+        self.tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1)
+        self.label = sv.LabelAnnotator()
+        self.annotator = sv.BoxAnnotator()
+        self.trace_annotator = sv.TraceAnnotator()
         self.xList = [i for i in range(start,end)]
         self.positionY = []
         self.PositionX = []
