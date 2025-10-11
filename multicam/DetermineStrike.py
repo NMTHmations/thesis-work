@@ -1,5 +1,3 @@
-from collections import defaultdict, deque
-import torch
 import supervision as sv
 import cv2
 import numpy as np
@@ -137,12 +135,11 @@ class DetermineStrike:
         return (annotated_frame, points)
     
     def detectFrame(self,frame:tuple, detections, albumentation:bool = False):
-        is_goal = False
+        cross_points = None
         if albumentation:
             frame = self._albumentImage(frame)
         sv_detections = self.extract_detections(detections,self.height,self.width,0.25)
         frame, points = self.process_detections(frame,sv_detections,self.class_names,self.tracker,self.annotator,self.label)
-        """
         lista = points.tolist()
         if self.isDebug:
             lista = self._getDebugListPoint(lista,frame)
@@ -152,24 +149,24 @@ class DetermineStrike:
             self.positionY.append(Y)
             coeff = np.polyfit(self.PositionX, self.positionY, 2) # polynomial regression (2nd grade)
             p = np.poly1d(coeff)
-            for i in range(1,len(self.PositionX)):
-                x = self.PositionX[i]
-                x1 = self.PositionX[i-1]
-                y = int(p(x))
-                y1 = int(p(x1))
-                cv2.line(frame,(int(x),int(y)),(int(self.PositionX[i-1]),int(y1)),(255,0,255),2)
-            for i in range(1,len(self.xList)+1):
-                x = int(self.xList[i-1])
-                y = int(p(x))
-                if i < len(self.xList):
-                    x1 = int(self.xList[i])
-                    y1 = int(p(x1))
-                    cross, points = self._getIntersection((int(x),int(y)),(x1,y1),self.acceptStart,self.acceptEnd)
-                    if cross:
-                        is_goal = True
-                cv2.circle(frame,(int(x),int(y)),5,(255,0,255),cv2.FILLED)
-        cv2.line(frame,self.acceptStart,self.acceptEnd,(0,255,0),2)"""
-        return frame, is_goal
+            try:
+                for i in range(1,len(self.xList)+1):
+                    x = int(self.xList[i-1])
+                    y = int(p(x))
+                    if i < len(self.xList):
+                        x1 = int(self.xList[i])
+                        y1 = int(p(x1))
+                        cross, points = self._getIntersection((x,y),(x1,y1),self.acceptStart,self.acceptEnd)
+                        if cross:
+                            cross_points = points
+                    cv2.circle(frame,(int(x),int(y)),5,(255,0,255),cv2.FILLED)
+            except:
+                pass
+        else:
+            if len(self.PositionX) > 10:
+                self.flushPositions()
+        cv2.line(frame,self.acceptStart,self.acceptEnd,(0,255,0),2)
+        return frame, cross_points
     
     def flushPositions(self):
         self.PositionX = []

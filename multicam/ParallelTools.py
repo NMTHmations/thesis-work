@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 from DetermineStrike import DetermineStrike
 from multiprocessing import Process, Event
-from multiprocessing import Value, Queue
+from multiprocessing import Value, Queue, Manager
 from picamera2.devices import Hailo
 
 
@@ -23,7 +23,6 @@ class ParallelTools():
     def _cameraHandler(self,source,strikeEstimaterDetails,start_event,stop_event, isSide:bool, isGoalFront, isGoalDexter):
         start_event.wait()
         strikeEstimater = DetermineStrike(**strikeEstimaterDetails)
-        #cap, coord = self._setCaptures(cv2.VideoCapture(filename=source))
         cap = cv2.VideoCapture(filename=source)
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FPS,120)
@@ -31,11 +30,11 @@ class ParallelTools():
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         print(cap.get(cv2.CAP_PROP_FPS))
         is_goal = False
-        previous_frame = None
-        previous_detections = None
         detection_buffer = []
+        non_detection_counter = 0
 
         while not stop_event.is_set():
+            actual_frame = None
             ret, frame = cap.read()
             if not ret:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -64,7 +63,7 @@ class ParallelTools():
             
             matched_detections = None
             for ts, dets in reversed(detection_buffer):
-                if abs(ts - timestamp) < 0.05:
+                if abs(ts - timestamp) < 0.15:
                     matched_detections = dets
                     break
                 
@@ -74,10 +73,15 @@ class ParallelTools():
                     isGoalDexter.value = is_goal
                 else:
                     isGoalFront.value = is_goal
-                cv2.imshow("YOLOv5 Detection", annotated_frame)
+                actual_frame = annotated_frame
             else:
-                cv2.imshow("YOLOv5 Detection", frame)
-
+                non_detection_counter += 1
+                if non_detection_counter == 10:
+                    strikeEstimater.flushPositions()
+                    non_detection_counter = 0
+                actual_frame = frame
+            
+            cv2.imshow("YOLOv5 Detection", actual_frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 stop_event.set()
                 break
@@ -88,10 +92,10 @@ class ParallelTools():
     def getGoalResults(self,start_event,stop_event, isGoalFront, isGoalDexter):
         start_event.wait()
         while not stop_event.is_set():
-            if isGoalFront.value and isGoalDexter.value:
+            if isGoalFront.value is not None and isGoalDexter.value is not None:
                 print("Goal!")
-                isGoalFront.value = False
-                isGoalDexter.value = False
+                isGoalFront.value = None
+                isGoalDexter.value = None
     
     def HailoInferenceJudge(self,start_event,stop_event):
         start_event.wait()
@@ -118,8 +122,9 @@ class ParallelTools():
     def CameraHandler(self):
         start_event = Event()
         stop_event = Event()
-        isGoalFront = Value('b', False)
-        isGoalDexter = Value('b', False)
+        manager = Manager()
+        isGoalFront = manager.Value(object, None)
+        isGoalDexter = manager.Value(object, None)
         processFront = Process(target=self._cameraHandler,args=(self.sourceFront, self.strikeFront,start_event,stop_event,False, isGoalFront, isGoalDexter))
         processDexter = Process(target=self._cameraHandler,args=(self.sourceDexter, self.strikeDexter,start_event,stop_event,True, isGoalFront, isGoalDexter))
         goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter))
