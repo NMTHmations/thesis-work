@@ -2,7 +2,6 @@ import supervision as sv
 import cv2
 import numpy as np
 import albumentations as abm
-from inference import get_model
 
 class DetermineStrike:
     def __init__(self,start,end,height:int, width:int,debug:bool = False,

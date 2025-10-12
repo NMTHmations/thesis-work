@@ -1,152 +1,68 @@
-from collections import defaultdict, deque
-import torch
-import supervision as sv
-import cv2
-import numpy as np
-import albumentations as abm
+from multicam import ParallelTools
+from multicam import getFrames
+from multicam import cameraTools
+import sys
+import argparse
+import traceback
 
-class PerspectiveTransform:
-    def __init__(self, source: np.ndarray, target: np.ndarray):
-        self.source = source.astype(np.float32)
-        self.target = target.astype(np.float32)
-        self.matrix = cv2.getPerspectiveTransform(self.source, self.target) # calculate the perspective transformation matrix
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Robotic Football - Goal Keeper Automat")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    camTools = subparsers.add_parser('CamTools', help='Shows camera settings under Raspberry Pi')
+    frameGetter = subparsers.add_parser('getFrames', help='get Frames for Robflow annotation')
+    frameGetter.add_argument('--src',type=str,required=True,help="The source file of the video (must be .mp4/.mov)")
+    frameGetter.add_argument('--dst',type=str,required=True,help="The destination library of the frames")
+    camDetection = subparsers.add_parser('startDetection', help='Starts detection')
+    camDetection.add_argument('--lowerHSV',type=str,required=False,help="Sets lower HSV")
+    camDetection.add_argument('--upperHSV',type=str,required=False,help="Sets upper HSV")
+    camDetection.add_argument('--maxStep',type=int,required=False,help="Sets maximum steps of the motor (default 30)",default=30)
+    camDetection.add_argument('--albument',required=False,help="Albument camera image",action='store_false')
 
-    # TODO: COORDINATE TRACKING
-    
-    def apply(self, frame):
-        return cv2.warpPerspective(frame, self.matrix, (frame.shape[1], frame.shape[0])) # apply the perspective transformation to the frame
-    
-    def transform_points(self, points: np.ndarray) -> np.ndarray:
-        if points.size == 0:
-            return points
-        
-        reshaped_points = points.reshape(-1,1,2).astype(np.float32)
-        transformed_points = cv2.perspectiveTransform(reshaped_points,self.matrix)
-        return transformed_points.reshape(-1, 2)
-    
-        
+    args = parser.parse_args()
 
-model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt')
-cap = cv2.VideoCapture("test1.mov")
+    try:
 
-if not cap.isOpened():
-    print("Error: Could not open video.")
-    exit()
+        if args.command == "CamTools":
+            cameraTools.CameraTools()
+        elif args.command == "getFrames":
+            getFrames.GetFrames(args.src,args.dst).getFrames()
+        elif args.command == "startDetection":
+            lowerHSV = None
+            upperHSV = None
+            if args.lowerHSV != None and args.upperHSV != None:
+                if len(args.lowerHSV.split(",")) == 3 and len(args.upperHSV.split(",")) == 3:
+                    lowerHSV =  [int(args.lowerHSV.split(',')[0]),int(args.lowerHSV.split(',')[1]),int(args.lowerHSV.split(',')[2])]
+                    upperHSV =  [int(args.upperHSV.split(',')[0]),int(args.upperHSV.split(',')[1]),int(args.upperHSV.split(',')[2])]
+                else:
+                    raise Exception("Invalid HSV format")
+            debug = lowerHSV != None and upperHSV != None
+            dexterStrike = {
+                "start": 50,
+                "end": 540,
+                "height": 480,
+                "width": 640,
+                "acceptStart": (150, 0),
+                "acceptEnd": (150, 480),
+                "lowerHSV": lowerHSV,
+                "upperHSV": upperHSV,
+                "debug": debug
+            }
 
-cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            frontStrike = {
+                "start": 50,
+                "end": 540,
+                "height": 480,
+                "width": 640,
+                "acceptStart": (0, 480),
+                "acceptEnd": (640, 480),
+                "lowerHSV": lowerHSV,
+                "upperHSV": upperHSV,
+                "debug": debug
+            }
+            startingStep = round(args.maxStep / 2)
+            executer = ParallelTools.ParallelTools("dev/video2","dev/video0",frontStrike,dexterStrike,startingStep,args.maxStep,args.albument)
+            executer.CameraHandler()
+    except Exception as e:
+        traceback.print_exc()
+        exit(1)       
 
-# Task to do: Determine the source points
-source = np.array([
-    [50, 180],
-    [260, 180],
-    [230, 384],
-    [0, 384]
-    ]) # source points
-
-# Define the target points for the perspective transformation
-# These points should be in the same order as the source points
-
-target = np.array([
-    [0,0],
-    [40,0],
-    [40,250],
-    [0,250]
-    ]) # target points
-
-transformer = PerspectiveTransform(source,target)
-
-tracker = sv.ByteTrack() # create tracker
-label_annotator = sv.LabelAnnotator() # get annotations
-box_annotator = sv.BoxAnnotator() # get boxing
-trace_annotator = sv.TraceAnnotator() # create trace annotator
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model.to(device)
-
-coordinates = defaultdict(lambda: deque(maxlen=int(cap.get(cv2.CAP_PROP_FPS))))
-
-def speedCalculator(points: np.ndarray, detections: sv.Detections):
-    points = transformer.transform_points(points=points).astype(int)
-    
-    speeds = {}
-    
-    # store the transformed coordinates
-    for tracker_id, [_, y] in zip(detections.tracker_id, points):
-        coordinates[tracker_id].append(y)
-
-    meters_per_pixel = (1/40 + 1/250) /2
-    
-    for tracker_id in detections.tracker_id:
-    
-        print(len(coordinates[tracker_id]))
-        # wait to have enough data
-        if len(coordinates[tracker_id]) > 0:
-
-            # calculate the speed
-            coordinate_start = coordinates[tracker_id][0]
-            coordinate_end = coordinates[tracker_id][-1]
-            distance_pixels = np.linalg.norm(np.array(coordinate_end) - np.array(coordinate_start))
-            distance = distance_pixels * meters_per_pixel
-            time = (len(coordinates[tracker_id]) - 1) / cap.get(cv2.CAP_PROP_FPS)
-            if time > 0: 
-                speed = distance / time * 3.6
-                speeds[tracker_id] = speed
-    
-    return speeds
-
-# TODO: speed measurement
-def detection_frame(frame:tuple):
-    # albumentations usage
-    blur_image = abm.OneOf([
-        abm.MotionBlur(p=0.6),
-        abm.GaussianBlur(p=0.6)
-    ], p=0.4)
-    transformed = blur_image(image=frame)
-    img = transformed["image"]
-    results = model(frame) # run inference
-    res_tr = model(img)
-    detections = sv.Detections.from_yolov5(results) # get detections
-    detections1 = sv.Detections.from_yolov5(res_tr)
-    detections = detections[detections.confidence > 0.35] # filter for confidence > 0.5
-    detections = tracker.update_with_detections(detections) # update tracker
-    detections = tracker.update_with_detections(detections1) # update tracker
-    points = detections.get_anchors_coordinates(anchor=sv.Position.BOTTOM_CENTER)
-    print(points)
-    speeds = speedCalculator(points, detections)
-    labels = []
-    for class_id, confidence, tracker_id in zip(detections.class_id, detections.confidence, detections.tracker_id):
-        class_name = results.names[class_id]
-        speed_str = f" | {speeds[tracker_id]:.1f} km/h" if tracker_id in speeds else ""
-        labels.append(f"{class_name} {confidence:.2f}{speed_str}")
-    
-    frame = box_annotator.annotate(scene=frame, detections=detections)
-    frame = label_annotator.annotate(scene=frame, detections=detections, labels=labels)
-    frame = trace_annotator.annotate(scene=frame, detections=detections) # annotate frame with detections
-    return frame
-
-# Test the model with the detection of a ball - currently it detects as volleyball instead of tennis ball
-# and the confidence is relatively low - 0.65
-image = cv2.imread("test.jpg") # read image
-image = detection_frame(image) # run detection
-cv2.imshow("YOLOv5 Detection of image", image) # show image
-
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        cap.set(cv2.CAP_PROP_POS_FRAMES,0)
-        continue
-    frame = cv2.resize(frame, (640,384)) # resize frame
-    new_frame = transformer.apply(frame)
-    if not ret:
-        print("Error: Could not read frame.")
-        break
-    frame = detection_frame(frame) # run detection
-    for point in source:
-        cv2.circle(frame, tuple(map(int, point)), 5, (0, 255, 0), -1)
-    cv2.imshow("YOLOv5 Detection", frame)
-    cv2.imshow("Perspective transform",new_frame)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()

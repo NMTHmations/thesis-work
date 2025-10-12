@@ -5,12 +5,13 @@ from DetermineStrike import DetermineStrike
 from multiprocessing import Process, Event
 from multiprocessing import Value, Queue, Manager
 from picamera2.devices import Hailo
+from MotorClient import MotorClient
 
 
 class ParallelTools():
     
     
-    def __init__(self,camFront:str|int,camDexter:str|int, strikeFront, strikeDexter):
+    def __init__(self,camFront:str|int,camDexter:str|int, strikeFront, strikeDexter, startingStep : int = 0, maxStep :int = 30, albument: bool = False):
         self.sourceFront = camFront
         self.sourceDexter = camDexter
         self.strikeFront = strikeFront
@@ -19,6 +20,10 @@ class ParallelTools():
         self.InputSide = Queue()
         self.OutputSide = Queue()
         self.OutputFront = Queue()
+        self.startingPoint = startingStep
+        self.MotorController = MotorClient()
+        self.maxStep = maxStep
+        self.albument = albument
     
     def _cameraHandler(self,source,strikeEstimaterDetails,start_event,stop_event, isSide:bool, isGoalFront, isGoalDexter):
         start_event.wait()
@@ -68,7 +73,7 @@ class ParallelTools():
                     break
                 
             if matched_detections is not None:
-                annotated_frame, is_goal = strikeEstimater.detectFrame(frame, matched_detections, False)
+                annotated_frame, is_goal = strikeEstimater.detectFrame(frame, matched_detections, self.albument)
                 if isSide:
                     isGoalDexter.value = is_goal
                 else:
@@ -89,17 +94,26 @@ class ParallelTools():
         cv2.destroyAllWindows()
         exit()
 
-    def getGoalResults(self,start_event,stop_event, isGoalFront, isGoalDexter):
+    def getGoalResults(self,start_event,stop_event, isGoalFront, isGoalDexter, startStep):
         start_event.wait()
         while not stop_event.is_set():
             if isGoalFront.value is not None and isGoalDexter.value is not None:
                 print("Goal!")
+                ratio = self.maxStep / 640
+                pointX = round(isGoalFront.value[0] * ratio)
+                steps = pointX - startStep.value
+                direction = True
+                if steps < 0:
+                    direction = False
+                for i in range(abs(steps)):
+                    self.MotorController.stepMotor(direction)
+                startStep.value = pointX
                 isGoalFront.value = None
                 isGoalDexter.value = None
     
     def HailoInferenceJudge(self,start_event,stop_event):
         start_event.wait()
-        HailoModel = Hailo("hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef")
+        HailoModel = Hailo("../hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef")
         while not stop_event.is_set():
             try:
                 ts_front, input_front = self.InputFront.get_nowait()
@@ -122,12 +136,13 @@ class ParallelTools():
     def CameraHandler(self):
         start_event = Event()
         stop_event = Event()
+        startStep = Value("i",self.startingPoint)
         manager = Manager()
         isGoalFront = manager.Value(object, None)
         isGoalDexter = manager.Value(object, None)
         processFront = Process(target=self._cameraHandler,args=(self.sourceFront, self.strikeFront,start_event,stop_event,False, isGoalFront, isGoalDexter))
         processDexter = Process(target=self._cameraHandler,args=(self.sourceDexter, self.strikeDexter,start_event,stop_event,True, isGoalFront, isGoalDexter))
-        goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter))
+        goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter, startStep))
         hailoGod = Process(target=self.HailoInferenceJudge,args=(start_event,stop_event))
         processFront.start()
         processDexter.start()
@@ -138,20 +153,4 @@ class ParallelTools():
         processDexter.join()
         goalSummarizer.join()
         hailoGod.join()
-
-dexterStrike = {
-    "start": 50,
-    "end": 540,
-    "height": 480,
-    "width": 640,
-    "acceptStart": (150, 250),
-    "acceptEnd": (150, 100),
-    "lowerHSV": [10, 108, 28],
-    "upperHSV": [17, 221, 224],
-    "debug": False
-}
-
-if __name__ == "__main__":
-    parallel = ParallelTools("/dev/video0","/dev/video2",dexterStrike,dexterStrike)
-    parallel.CameraHandler()
 

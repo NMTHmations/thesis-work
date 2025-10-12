@@ -36,5 +36,3 @@ class GetFrames:
                 x = GetFrames(x.path,newFolder).getFrames()
             else:
                 sys.stderr.write("Could not retrieve any data on this directory")
-
-GetFrames("/Users/nemethhunor/Downloads/vids","/Users/nemethhunor/Downloads/frames").getFrames()
