@@ -13,6 +13,9 @@ from project.detection.types.enums import ThreadNames, FrameSize
 
 
 class DetectionThread(threading.Thread):
+    """
+    A dedicated thread to perform object detection on video frames.
+    """
     def __init__(
         self,
         stopEvent: threading.Event,
@@ -34,11 +37,18 @@ class DetectionThread(threading.Thread):
         self.boxAnnotator = sv.BoxAnnotator()
         self.labelAnnotator = sv.LabelAnnotator()
 
+
     def _preprocessFrames(self, frames : List[FrameItem], imgSize: Tuple[int, int]) -> List[FrameItem]:
+        """
+        Performs frame preprocessing to speed up object detection.
+        :param frames: A list of frame items.
+        :param imgSize: Target image size.
+        :return: A list of resized frames.
+        """
         items = []
         for frameItem in frames:
-            processed = cv2.resize(frameItem.frame, imgSize)
-            items.append(processed)
+            #processed = cv2.resize(frameItem.frame, imgSize)
+            items.append(frameItem.frame)
 
         return items
 
@@ -72,8 +82,6 @@ class DetectionThread(threading.Thread):
                 annotated = it.frame.copy()
                 try:
                     annotated = self.boxAnnotator.annotate(annotated, detections)
-                    labels = [f"{c}:{round(s,2)}" for c, s in zip(detections.class_id, detections.confidence)]
-                    annotated = self.labelAnnotator.annotate(annotated, detections, labels)
                 except Exception as e:
                     print(f"[{ThreadNames.DETECTION}] Annotation failed:", e)
                     traceback.print_exc()

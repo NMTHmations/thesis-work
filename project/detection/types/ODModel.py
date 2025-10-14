@@ -1,9 +1,9 @@
 from abc import abstractmethod
 from typing import Optional, Tuple
 
+import cv2
 import numpy as np
 import supervision as sv
-from picamera2.devices import Hailo
 
 from project.detection.types.enums import ModelTypes, FrameSize
 
@@ -50,21 +50,84 @@ class DetectionModelFactory:
     @staticmethod
     def create(**kwargs) -> DetectionModel:
         modelType = kwargs["modelType"]
-        modelPath = kwargs["modelPath"]
 
         if modelType == ModelTypes.YOLO:
+
+            modelPath = kwargs["modelPath"]
             device = kwargs["device"]
             return YOLOModel(modelPath=modelPath, device=device, inferenceImgSize=640)
 
         elif modelType == ModelTypes.INFERENCE:
+
+            modelPath = kwargs["modelPath"]
             apiKey = kwargs["apiKey"]
             return RoboflowModel(modelPath=modelPath, apiKey=apiKey)
 
+        elif modelType == ModelTypes.COLOR:
+            loverHSV = kwargs["loverHSV"]
+            upperHSV = kwargs["upperHSV"]
+
+            return ColorDetectorModel(loverHSV=loverHSV, upperHSV=upperHSV)
         else:
             raise ValueError("Unknown model type")
 
 
 
+class ColorDetectorModel(DetectionModel):
+    def __init__(self, loverHSV, upperHSV):
+        self.loverHSV = loverHSV
+        self.upperHSV = upperHSV
+
+    def infer(self, frame):
+        mask = self._getMask(frame)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+
+        return contours
+
+    def batch_infer(self, batch):
+        contoursBatch = []
+        for frame in batch:
+            contoursBatch.append(self.infer(frame))
+
+        return contoursBatch
+
+
+    def getDetectionFromResult(self, result, originalWH: Optional[Tuple[int, int]]) -> sv.Detections:
+        bboxList = []
+        confList = []
+        classIDList = []
+
+        detections = sv.Detections.empty()
+
+        for r in result:
+            if cv2.contourArea(r) > 100:
+                x, y, w, h = cv2.boundingRect(r)
+                bboxList.append([x, y, x + w, y + h])  # xyxy formátum
+                classIDList.append(0)  # ha van osztály, ide teheted a class ID-t
+                confList.append(1)
+
+
+        if len(bboxList) > 0:
+            bboxes = np.array(bboxList, dtype=int)
+            confidences = np.array(confList, dtype=int)
+            classIDList = np.array(classIDList, dtype=int)
+
+            detections = sv.Detections(xyxy=bboxes, confidence=confidences, class_id=classIDList)
+
+        return detections
+
+    def _getMask(self, frame):
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        mask = cv2.inRange(hsv, np.array(self.loverHSV), np.array(self.upperHSV))
+
+        #Remove noise
+        kernel = np.ones((5, 5), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+        return mask
 
 
 class YOLOModel(DetectionModel):
@@ -77,7 +140,6 @@ class YOLOModel(DetectionModel):
             self.device = "cpu"
         else:
             self.device = device
-
         if inferenceImgSize is None:
             self.inferenceImgSize = FrameSize.INPUTDIM
         else:
@@ -91,7 +153,7 @@ class YOLOModel(DetectionModel):
     def batch_infer(self, batch):
         return self.model.predict(batch, imgsz=self.inferenceImgSize, verbose=self.isVerbose, device=self.device)
 
-    def getDetectionFromResult(self, result, originalWH : Optional[Tuple[int,int]]) -> sv.Detections:
+    def getDetectionFromResult(self, result, originalWH : Optional[Tuple[int,int]] = None) -> sv.Detections:
         if originalWH is None:
             originalWH = (FrameSize.INPUTDIM,FrameSize.INPUTDIM)
 
@@ -119,16 +181,3 @@ class RoboflowModel(DetectionModel):
         det = sv.Detections.from_inference(result)
 
         return self._remapDetectionsIfNeeded(det, originalWH)
-
-class HailoModel(DetectionModel):
-    def __init__(self, modelPath):
-        self.model = Hailo(modelPath)
-    def infer(self, frame):
-        results = self.model.run_async(frame)
-
-    def batch_infer(self, batch):
-        #numpy array, amiben van n-db (2) tömb azon belül 5 érték -> elő 4 bounding boxes (y1,x1,y2,x2), 5. confidence
-        results = self.model.run_async(batch)
-
-    def getDetectionFromResult(self, result, originalWH: Optional[Tuple[int, int]]) -> sv.Detections:
-        pass

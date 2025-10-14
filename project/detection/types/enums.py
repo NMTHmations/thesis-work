@@ -10,6 +10,7 @@ class ThreadNames(StrEnum):
 class ModelTypes(StrEnum):
     YOLO = "Yolo"
     INFERENCE = "Inference"
+    COLOR = "Color"
 
 
 class FrameSize(IntEnum):
