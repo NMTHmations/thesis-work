@@ -8,9 +8,10 @@ from project.detection.types.enums import ModelTypes, FrameSize
 
 
 def main():
-    source = 0  # vagy "../videos/test.mp4"
-    # source = "../sources/vid/speed_example_720p.mp4"
-    modelPath = "../models/yolo11l.engine"
+    sourceLeft = 1
+    sourceRight = 2
+
+    modelPath = "../models/best.engine"
     # modelPath = "experiment-sxxxi/1"
     device = 0  # GPU: 0 vagy 'cuda:0', CPU: 'cpu'
 
@@ -19,22 +20,29 @@ def main():
         "modelType": ModelTypes.YOLO,
         "device": device,
     }
-    modelL = DetectionModelFactory.create(**modelConfig)
-    modelR = DetectionModelFactory.create(**modelConfig)
+    modelLeft = DetectionModelFactory.create(**modelConfig)
+    modelRight = DetectionModelFactory.create(**modelConfig)
 
-    frameBufferL = FrameBuffer(maxLength=256)
-    frameBufferR = FrameBuffer(maxLength=256)
+    frameBufferLeft = FrameBuffer(maxLength=64)
+    frameBufferLeft.timeout = 0.15
 
-    frameBufferL.timeout = 0.15
-    frameBufferR.timeout = 0.15
+    frameBufferRight = FrameBuffer(maxLength=64)
+    frameBufferRight.timeout = 0.15
 
     stopEvent = threading.Event()
 
-    detectionQueueL = queue.Queue(maxsize=64)
-    detectionQueueR = queue.Queue(maxsize=64)
+    detectionQueueLeft = queue.Queue(maxsize=64)
+    detectionQueueRight = queue.Queue(maxsize=64)
 
     threads = (
-        #TODO(IMPLEMENT)
+        CaptureThread(stopEvent=stopEvent, source=sourceLeft, frameBuffer=frameBufferLeft),
+        CaptureThread(stopEvent=stopEvent, source=sourceRight, frameBuffer=frameBufferRight),
+        DetectionThread(stopEvent=stopEvent, frameBuffer=frameBufferLeft, detectionQueue=detectionQueueLeft, model=modelLeft,
+                        batchSize=1),
+        DetectionThread(stopEvent=stopEvent, frameBuffer=frameBufferRight, detectionQueue=detectionQueueRight, model=modelRight,
+                        batchSize=1),
+        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueueLeft),
+        VisualizerThread(stopEvent=stopEvent, detectionQueue=detectionQueueRight),
     )
 
     threadManager = ThreadManager(stopEvent=stopEvent, threads=threads)

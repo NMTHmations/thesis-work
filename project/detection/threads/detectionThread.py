@@ -47,8 +47,8 @@ class DetectionThread(threading.Thread):
         """
         items = []
         for frameItem in frames:
-            processed = cv2.resize(frameItem.frame, imgSize)
-            items.append(processed)
+            #processed = cv2.resize(frameItem.frame, imgSize)
+            items.append(frameItem.frame)
 
         return items
 
@@ -82,8 +82,6 @@ class DetectionThread(threading.Thread):
                 annotated = it.frame.copy()
                 try:
                     annotated = self.boxAnnotator.annotate(annotated, detections)
-                    labels = [f"{c}:{round(s,2)}" for c, s in zip(detections.class_id, detections.confidence)]
-                    annotated = self.labelAnnotator.annotate(annotated, detections, labels)
                 except Exception as e:
                     print(f"[{ThreadNames.DETECTION}] Annotation failed:", e)
                     traceback.print_exc()

@@ -39,10 +39,14 @@ class CaptureThread(threading.Thread):
 
             ret, frame = self.cap.read()
             if not ret:
-                print(f"[{ThreadNames.CAPTURE}] No frame (end of video or camera error).")
-                break
+                self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                self.frameID = 0
+                continue
+                """print(f"[{ThreadNames.CAPTURE}] No frame (end of video or camera error).")
+                break"""
 
             self.frameID += 1
+
             item = FrameItem(frameID=self.frameID, frame=frame, timestamp=time.time())
             self.frameBuffer.push(item)
 

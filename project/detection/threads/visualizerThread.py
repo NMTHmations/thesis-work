@@ -27,7 +27,7 @@ class VisualizerThread(threading.Thread):
     def run(self):
         print(f"[{ThreadNames.VISUALIZER}] Thread started")
         cv2.namedWindow(self.windowName, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(self.windowName, 1280, 720)
+        cv2.resizeWindow(self.windowName, 640, 360)
 
         while not self.stopEvent.is_set():
             try:
@@ -36,6 +36,8 @@ class VisualizerThread(threading.Thread):
                 print(f"[{ThreadNames.VISUALIZER}] No frames received")
                 continue
 
+            cv2.resize(frame, (640,360))
+            cv2.putText(frame,str(frameID),[100,100],  cv2.FONT_HERSHEY_SIMPLEX, 1,(255, 0, 0), 2, cv2.LINE_AA)
             cv2.imshow(self.windowName, frame)
 
 
