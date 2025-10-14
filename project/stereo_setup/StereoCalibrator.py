@@ -1,144 +1,147 @@
 import os
-
 import cv2
 import numpy as np
-
 from project.stereo_setup import paramsDir
 
 
 class StereoCalibrator():
-    def __init__(self, chessBoardSize, imagesLeft, imagesRight):
+    def __init__(self, chessBoardSize, imagesLeft, imagesRight, square_size=1.0):
         self.chessBoardSize = chessBoardSize
         self.imagesLeft = imagesLeft
         self.imagesRight = imagesRight
+        self.square_size = square_size  # a négyzet valós mérete (pl. m-ben vagy mm-ben)
 
     def calibrate(self):
 
-        ######INIT######
         endCriteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
         img_tmpL = cv2.imread(self.imagesLeft[0])
         img_tmpR = cv2.imread(self.imagesRight[0])
         grayScaleImgSize = self._getGrayscale(img_tmpL).shape[::-1]
 
-        imgHeightLeft, imgWidthLeft, channelsLeft = img_tmpL.shape
-        imgHeightRight, imgWidthRight, channelsRight = img_tmpR.shape
+        imgHeightLeft, imgWidthLeft, _ = img_tmpL.shape
+        imgHeightRight, imgWidthRight, _ = img_tmpR.shape
 
         print("Calibrating...")
 
-        objPointsLeft, imgPointsLeft, = self.collectPoints(self.imagesLeft, endCriteria)
-        objPointsRight, imgPointsRight = self.collectPoints(self.imagesRight, endCriteria)
+        objPoints, imgPointsLeft, imgPointsRight = self.collectPointsStereo(self.imagesLeft, self.imagesRight,
+                                                                            endCriteria)
 
-        reprojectionErrorL, cameraMatrixL, distortionCoefficientsL, rotationVectorL, transitionVectorL = (
-            cv2.calibrateCamera(objPointsLeft,
-                                imgPointsLeft,
-                                grayScaleImgSize,
-                                None,
-                                None)
-            )
+        _, cameraMatrixL, distortionCoefficientsL, _, _ = cv2.calibrateCamera(objPoints, imgPointsLeft,
+                                                                              grayScaleImgSize, None, None)
+        _, cameraMatrixR, distortionCoefficientsR, _, _ = cv2.calibrateCamera(objPoints, imgPointsRight,
+                                                                              grayScaleImgSize, None, None)
 
-        reprojectionErrorR, cameraMatrixR, distortionCoefficientsR, rotationVectorR, transitionVectorR = (
-            cv2.calibrateCamera(objPointsRight,
-                                imgPointsRight,
-                                grayScaleImgSize,
-                                None,
-                                None)
-        )
-
-        optimalCameraMatrixL, roiL = cv2.getOptimalNewCameraMatrix(
-            cameraMatrixL,
-            distortionCoefficientsL,
+        # Stereo kalibráció
+        flags = cv2.CALIB_FIX_INTRINSIC
+        retStereo, cameraMatrixL, distortionCoefficientsL, cameraMatrixR, distortionCoefficientsR, \
+        R, T, E, F = cv2.stereoCalibrate(
+            objPoints, imgPointsLeft, imgPointsRight,
+            cameraMatrixL, distortionCoefficientsL,
+            cameraMatrixR, distortionCoefficientsR,
             (imgWidthLeft, imgHeightLeft),
-            1,
-            (imgWidthLeft, imgHeightLeft)) #New image size
-
-        optimalCameraMatrixR, roiR = cv2.getOptimalNewCameraMatrix(
-            cameraMatrixR,
-            distortionCoefficientsR,
-            (imgWidthRight, imgHeightRight),
-            1,
-            (imgWidthRight, imgHeightRight)
+            criteria=endCriteria,
+            flags=flags
         )
 
-        (retStereo, stereoCameraMatrixL, stereodistortionL, stereoCameraMatrixR, stereodistortionR,
-         stereoRotationVector, stereoTransitionVector, stereoEssentialMatrix, stereoFundamentalMatrix)  = (
-            cv2.stereoCalibrate(objPointsLeft, imgPointsLeft, imgPointsRight, optimalCameraMatrixL,distortionCoefficientsL,
-                                optimalCameraMatrixR, distortionCoefficientsR, (imgWidthLeft, imgHeightLeft),endCriteria, cv2.CALIB_FIX_INTRINSIC))
+        print("Stereo RMS reprojection error: {:.3f}".format(retStereo))
 
-
+        # Stereo rectifikáció
         rectifyScale = 1
+        R1, R2, P1, P2, Q, roiL, roiR = cv2.stereoRectify(
+            cameraMatrixL, distortionCoefficientsL,
+            cameraMatrixR, distortionCoefficientsR,
+            (imgWidthLeft, imgHeightLeft), R, T,
+            alpha=rectifyScale
+        )
 
-        rectLeft, rectRight, projectionMatrixLeft, projectionMatrixRight, Q, roiL, roiR = (
-            cv2.stereoRectify(optimalCameraMatrixL, stereodistortionL,optimalCameraMatrixR,stereodistortionR,
-                              (imgWidthLeft, imgHeightLeft), stereoRotationVector, stereoTransitionVector, rectifyScale, (0,0)))
+        # Undistort/rectify mapek
+        stereoMapLeft = cv2.initUndistortRectifyMap(
+            cameraMatrixL, distortionCoefficientsL, R1, P1,
+            (imgWidthLeft, imgHeightLeft), cv2.CV_16SC2
+        )
+        stereoMapRight = cv2.initUndistortRectifyMap(
+            cameraMatrixR, distortionCoefficientsR, R2, P2,
+            (imgWidthRight, imgHeightRight), cv2.CV_16SC2
+        )
 
-        stereoMapLeft = cv2.initUndistortRectifyMap(optimalCameraMatrixL, stereodistortionL,rectLeft,projectionMatrixLeft,(imgWidthLeft, imgHeightLeft),cv2.CV_16SC2)
-        stereoMapRight = cv2.initUndistortRectifyMap(optimalCameraMatrixR,stereodistortionR,rectRight,projectionMatrixRight,(imgWidthRight, imgHeightRight),cv2.CV_16SC2)
+        print("Stereo calibration done ✅")
 
+        # Elmentjük az összes fontos paramétert
+        self.saveParams(
+            cameraMatrixL, distortionCoefficientsL,
+            cameraMatrixR, distortionCoefficientsR,
+            R, T, E, F, R1, R2, P1, P2, Q,
+            stereoMapLeft, stereoMapRight
+        )
 
+        self.saveParams(cameraMatrixL, distortionCoefficientsL,
+                        cameraMatrixR, distortionCoefficientsR,
+                        R, T, E, F, R1, R2, P1, P2, Q,
+                        stereoMapLeft, stereoMapRight)
 
-        print("Stereo calibration done")
-        print(f"Object Points: {objPointsLeft}")
-        print("Reprojection error: {:.3f}".format(retStereo))
-        print(f"Stereo rotation vector:\n{stereoRotationVector}")
-        print(f"Stereo transition vector:\n{stereoTransitionVector}")
-        print(f"StreoMapLeft:\n {stereoMapLeft}")
-        print(f"StreoMapRight:\n {stereoMapRight}")
+    def collectPointsStereo(self, imagesLeft, imagesRight, criteria):
+        objPoints, imgPointsLeft, imgPointsRight = [], [], []
 
-        return stereoMapLeft, stereoMapRight
-
-        #self.saveParams(reprojectionError, cameraMatrix, distortionCoefficients, rotationVector, transitionVector)
-
-        #print(f"Camera matrix:\n {cameraMatrix}")
-        #print("reprojection error (pixels): {:.4f}".format(reprojectionError))
-
-
-    def collectPoints(self, images, criteria):
-
-        objPoints, imgPoints = [], []
-
-        objp = np.zeros((self.chessBoardSize[0]*self.chessBoardSize[1], 3), np.float32)
+        objp = np.zeros((self.chessBoardSize[0] * self.chessBoardSize[1], 3), np.float32)
         objp[:, :2] = np.mgrid[0:self.chessBoardSize[0], 0:self.chessBoardSize[1]].T.reshape(-1, 2)
 
-        #########
-            #if we know the distance of two img points we should multiply the objp with that number
-        #########
+        for imgL, imgR in zip(imagesLeft, imagesRight):
+            imgL = cv2.imread(imgL)
+            imgR = cv2.imread(imgR)
 
+            grayL = cv2.cvtColor(imgL, cv2.COLOR_BGR2GRAY)
+            grayR = cv2.cvtColor(imgR, cv2.COLOR_BGR2GRAY)
 
-        for fname in images:
-            img = cv2.imread(fname)
+            foundL, cornersL = cv2.findChessboardCorners(grayL, self.chessBoardSize, None)
+            foundR, cornersR = cv2.findChessboardCorners(grayR, self.chessBoardSize, None)
 
-            grayScale = self._getGrayscale(img)
-
-            cornersFound, corners = cv2.findChessboardCorners(grayScale, self.chessBoardSize, None)
-
-            if cornersFound:
+            if foundL and foundR:
                 objPoints.append(objp)
 
-                subCorners = cv2.cornerSubPix(grayScale, corners, (11, 11), (-1, -1), criteria)
+                cornersL = cv2.cornerSubPix(grayL, cornersL, (11, 11), (-1, -1), criteria)
+                cornersR = cv2.cornerSubPix(grayR, cornersR, (11, 11), (-1, -1), criteria)
 
-                imgPoints.append(subCorners)
+                imgPointsLeft.append(cornersL)
+                imgPointsRight.append(cornersR)
 
-                cv2.drawChessboardCorners(img, self.chessBoardSize, subCorners, cornersFound)
-                resized = cv2.resize(img, (1280,720))
-                cv2.imshow("img", resized)
-                cv2.waitKey(1000)
+                # Debug: kirajzolás
+                cv2.drawChessboardCorners(imgL, self.chessBoardSize, cornersL, foundL)
+                cv2.drawChessboardCorners(imgR, self.chessBoardSize, cornersR, foundR)
+                cv2.imshow("Left", imgL)
+                cv2.imshow("Right", imgR)
+                cv2.waitKey(500)
 
         cv2.destroyAllWindows()
+        return objPoints, imgPointsLeft, imgPointsRight
 
-        return objPoints, imgPoints
+    def saveParams(self, camL, distL, camR, distR,
+                   R, T, E, F, R1, R2, P1, P2, Q,
+                   stereoMapLeft, stereoMapRight,
+                   path=os.path.join(paramsDir, 'calibration.xml')):
 
-    #yet to implement
-    def saveStereoMaps(self, params : tuple, path = os.path.join(paramsDir, 'calibration.xml')):
-        print(f"Saving parameters to {path}")
+        print(f"Saving calibration parameters to {path}")
         cvFile = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
 
+        cvFile.write("cameraMatrixL", camL)
+        cvFile.write("distCoeffsL", distL)
+        cvFile.write("cameraMatrixR", camR)
+        cvFile.write("distCoeffsR", distR)
 
-        stereomapLeft = params[0]
-        stereomapRight = params[1]
+        cvFile.write("R", R)
+        cvFile.write("T", T)
+        cvFile.write("E", E)
+        cvFile.write("F", F)
 
-        stL_x, stL_y = stereomapLeft
-        stR_x, stR_y = stereomapRight
+        cvFile.write("R1", R1)
+        cvFile.write("R2", R2)
+        cvFile.write("P1", P1)
+        cvFile.write("P2", P2)
+        cvFile.write("Q", Q)
+
+        # Stereo mapeket két részre kell bontani
+        stL_x, stL_y = stereoMapLeft
+        stR_x, stR_y = stereoMapRight
 
         cvFile.write("stereoMapL_x", stL_x)
         cvFile.write("stereoMapL_y", stL_y)
@@ -146,11 +149,7 @@ class StereoCalibrator():
         cvFile.write("stereoMapR_y", stR_y)
 
         cvFile.release()
-
-    #yet to implement
-    def removeDistortion(self):
-        pass
-
+        print("Calibration file saved")
 
     def _getGrayscale(self, img):
         return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)

@@ -59,7 +59,7 @@ class ImageCapturer():
     
     """
     @staticmethod
-    def captureCalibrationImages():
+    def captureCalibrationImages(cam1,cam2):
 
         def create_dirs():
 
@@ -79,9 +79,8 @@ class ImageCapturer():
 
         create_dirs()
 
-        capRight = cv2.VideoCapture(0)
-        #capLeft = cv2.VideoCapture(1)
-        capLeft = capRight
+        capRight = cv2.VideoCapture(cam1)
+        capLeft = cv2.VideoCapture(cam2)
 
 
         if not capRight.isOpened():
