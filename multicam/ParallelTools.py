@@ -1,11 +1,11 @@
 import time
 import cv2
 import numpy as np
-from DetermineStrike import DetermineStrike
+from . import DetermineStrike
 from multiprocessing import Process, Event
 from multiprocessing import Value, Queue, Manager
 from picamera2.devices import Hailo
-from MotorClient import MotorClient
+from . import MotorClient
 
 
 class ParallelTools():
@@ -21,13 +21,13 @@ class ParallelTools():
         self.OutputSide = Queue()
         self.OutputFront = Queue()
         self.startingPoint = startingStep
-        self.MotorController = MotorClient()
+        self.MotorController = MotorClient.MotorClient()
         self.maxStep = maxStep
         self.albument = albument
     
     def _cameraHandler(self,source,strikeEstimaterDetails,start_event,stop_event, isSide:bool, isGoalFront, isGoalDexter):
         start_event.wait()
-        strikeEstimater = DetermineStrike(**strikeEstimaterDetails)
+        strikeEstimater = DetermineStrike.DetermineStrike(**strikeEstimaterDetails)
         cap = cv2.VideoCapture(filename=source)
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FPS,120)
@@ -113,7 +113,7 @@ class ParallelTools():
     
     def HailoInferenceJudge(self,start_event,stop_event):
         start_event.wait()
-        HailoModel = Hailo("../hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef")
+        HailoModel = Hailo("hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef")
         while not stop_event.is_set():
             try:
                 ts_front, input_front = self.InputFront.get_nowait()

@@ -4,7 +4,7 @@ import time
 class MotorClient():
     def __init__(self):
         self.interface = "eth0"
-        self.dst_mac = b'\x8e\x03\x34\xa5\x3f\x5e'
+        self.dst_mac = b'\x62\xb9\x25\xaf\x1e\x2f'
         self.src_mac = b'\x2c\xcf\x67\x9d\x12\x4d'
         self.eth_type = b'\x88\xb5'
         self.s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
