@@ -14,10 +14,6 @@ class DetectionModel:
         pass
 
     @abstractmethod
-    def batch_infer(self, batch):
-        pass
-
-    @abstractmethod
     def getDetectionFromResult(self, result, originalWH : Optional[Tuple[int,int]]) -> sv.Detections:
         pass
 
@@ -82,16 +78,7 @@ class ColorDetectorModel(DetectionModel):
         mask = self._getMask(frame)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-
         return contours
-
-    def batch_infer(self, batch):
-        contoursBatch = []
-        for frame in batch:
-            contoursBatch.append(self.infer(frame))
-
-        return contoursBatch
-
 
     def getDetectionFromResult(self, result, originalWH: Optional[Tuple[int, int]]) -> sv.Detections:
         bboxList = []

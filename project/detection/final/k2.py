@@ -21,7 +21,6 @@ import cv2
 import numpy as np
 import argparse
 import time
-import matplotlib.pyplot as plt
 from collections import deque
 
 # ---------------------------
@@ -121,8 +120,8 @@ def detect_ball_hsv(frame, hsv_lower, hsv_upper, min_area=80):
 # ---------------------------
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--camera", type=int, default=2)
-    parser.add_argument("--fps", type=float, default=60.0)
+    parser.add_argument("--camera", type=str, default="/dev/video3")
+    parser.add_argument("--fps", type=int, default=60)
     parser.add_argument("--hsv-lower", nargs=3, type=int, default=list(DEFAULT_HSV_LOWER))
     parser.add_argument("--hsv-upper", nargs=3, type=int, default=list(DEFAULT_HSV_UPPER))
     args = parser.parse_args()
@@ -139,7 +138,10 @@ def main():
         return
 
 
+    window_name = "Ball Predictor"
+
     cap.set(cv2.CAP_PROP_FPS, fps_target)
+
     actual_fps = cap.get(cv2.CAP_PROP_FPS)
 
 
@@ -157,18 +159,7 @@ def main():
     prev_center = None        # previous detected center (for crossing detection)
     predicted_points_history = deque(maxlen=PLOT_HISTORY)
 
-    # For plotting: use interactive mode
-    plt.ion()
-    fig, ax = plt.subplots(1,1, figsize=(4,3))
-    scatter_real, = ax.plot([],[], 'go', label='meas')   # not used heavily
-    scatter_pred, = ax.plot([],[], 'r.', label='pred')
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.set_title("Predicted trajectory (normalized last points)")
-    ax.legend(loc='upper right')
-
     # Mouse callback to set lines
-    window_name = "Ball Predictor"
     cv2.namedWindow(window_name)
 
     def mouse_cb(event, x, y, flags, param):
@@ -288,28 +279,16 @@ def main():
                     impact_pt = p + v * t
                     # map to segment parameter u
                     u_mapped = project_point_on_segment(impact_pt, a, b)
+
                     # draw impact on image
                     ix, iy = int(round(impact_pt[0])), int(round(impact_pt[1]))
                     cv2.circle(frame, (ix, iy), 8, (255,0,0), -1)
-                    cv2.putText(frame, f"Impact u={u_mapped:.3f}", (ix+10, iy+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
+                    cv2.putText(frame, f"Impact u={u_mapped:.3f}", (100,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
                 # else no valid intersection yet
 
         # update prev center
         if center is not None:
             prev_center = center
-
-        # update plot
-        if len(predicted_points_history) > 0:
-            arr = np.array(predicted_points_history)
-            xs = arr[:,0]
-            ys = arr[:,1]
-            scatter_pred.set_xdata(xs)
-            scatter_pred.set_ydata(ys)
-            ax.set_xlim(0,1)
-            ax.set_ylim(1,0)  # invert Y for image coordinates
-            fig.canvas.draw()
-            fig.canvas.flush_events()
-            plt.pause(0.001)
 
         # show frame
         cv2.imshow(window_name, frame)
@@ -328,8 +307,6 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
-    plt.ioff()
-    plt.close(fig)
 
 if __name__ == "__main__":
     main()

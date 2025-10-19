@@ -63,12 +63,12 @@ def main(args):
         prefix+"_BOTL": S_BOTL,
         prefix+"_TOPR": S_TOPR,
         prefix+"_BOTR": S_BOTR,
-        prefix+"_PT1": interpolate(S_TOPL, S_TOPR, 1/6),
-        prefix+"_PT2": interpolate(S_TOPL, S_TOPR, 1/3),
-        prefix+"_PB1": interpolate(S_BOTL, S_BOTR, 1/6),
-        prefix+"_PB2": interpolate(S_BOTL, S_BOTR, 1/3),
-        prefix+"_GOALT": interpolate(S_TOPR, S_BOTR, 1/3),
-        prefix+"_GOALB": interpolate(S_TOPR, S_BOTR, 2/3),
+        prefix+"_PT1": interpolate(S_TOPL, S_BOTL, 1/6),
+        prefix+"_PT2": interpolate(S_TOPL, S_BOTL, 1/3),
+        prefix+"_PB1": interpolate(S_TOPR, S_BOTR, 1/6),
+        prefix+"_PB2": interpolate(S_TOPR, S_BOTR, 1/3),
+        prefix+"_GOALT": interpolate(S_BOTL, S_BOTR, 1/3),
+        prefix+"_GOALB": interpolate(S_BOTL, S_BOTR, 2/3),
     }
 
     print("✅ Pontok meghatározva:")
@@ -83,8 +83,8 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cam", type=int, default=1, help="Kamera index")
-    parser.add_argument("--fpath", type=str, default="points_F_stereo.json", help="File path")
+    parser.add_argument("--cam", type=str, default="/dev/video3", help="Kamera index")
+    parser.add_argument("--fpath", type=str, default="points.json", help="File path")
     parser.add_argument("--pref", type=str, default="F", help="Parameter prefixes")
 
     args = parser.parse_args()

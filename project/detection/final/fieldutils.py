@@ -1,31 +1,46 @@
+from typing import Tuple
+
 import cv2
 import numpy as np
 
 
 class FieldUtils:
+    def __init__(self,
+                 topLeft : Tuple[int, int],
+                 topRight : Tuple[int, int],
+                 bottomLeft : Tuple[int, int],
+                 bottomRight : Tuple[int, int],
+                 startLine : Tuple[Tuple[int, int], Tuple[int, int]],
+                 impactLine : Tuple[Tuple[int, int], Tuple[int, int]],
 
-    @staticmethod
-    def drawPoints(frame,points):
-        for name, (x, y) in points.items():
-            cv2.circle(frame, (x, y), 5, (0, 0, 255), -1)
-            cv2.putText(frame, name, (x+5, y-5), cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5, (0, 255, 0), 1, cv2.LINE_AA)
+                 fieldColor : Tuple[int,int,int] = (255,0,0), #blue
+                 startLineColor : Tuple[int,int,int] = (0,255,255), #yellow
+                 impactLineColor : Tuple[int,int,int] = (255,0,255) #magenta
+                 ):
+        self.topLeft = topLeft
+        self.topRight = topRight
+        self.bottomLeft = bottomLeft
+        self.bottomRight = bottomRight
+        self.startLine = startLine
+        self.impactLine = impactLine
 
-    @staticmethod
-    def drawField_SIDE(frame, points):
+        self.fieldColor = fieldColor
+        self.startLineColor = startLineColor
+        self.impactLineColor = impactLineColor
 
-        cv2.line(frame, points["S_TOPL"], points["S_TOPR"], (255, 0, 0), 2)
-        cv2.line(frame, points["S_TOPR"], points["S_BOTR"], (255, 0, 0), 2)
-        cv2.line(frame, points["S_BOTR"], points["S_BOTL"], (255, 0, 0), 2)
-        cv2.line(frame, points["S_BOTL"], points["S_TOPL"], (255, 0, 0), 2)
-        cv2.line(frame, points["S_GOALT"], points["S_GOALB"], (0, 255, 255), 2)
 
-    @staticmethod
-    def drawField_FRONT(frame, points):
-        cv2.line(frame, points["F_TOPL"], points["F_TOPR"], (255, 0, 0), 2)
-        cv2.line(frame, points["F_TOPR"], points["F_BOTR"], (255, 0, 0), 2)
-        cv2.line(frame, points["F_BOTR"], points["F_BOTL"], (255, 0, 0), 2)
-        cv2.line(frame, points["F_BOTL"], points["F_TOPL"], (255, 0, 0), 2)
+
+    def drawField(self,frame):
+        cv2.line(frame, self.topLeft,    self.topRight,    (255,0,0), 2)
+        cv2.line(frame, self.topRight,   self.bottomRight, (255,0,0), 2)
+        cv2.line(frame, self.bottomLeft, self.bottomRight, (255,0,0), 2)
+        cv2.line(frame, self.bottomLeft, self.topLeft,     (255,0,0), 2)
+
+        cv2.line(frame,self.startLine[0],self.startLine[1], (0,255,255), 2)
+        cv2.putText(frame, "START LINE", (self.startLine[0][0], self.startLine[0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1)
+
+        cv2.line(frame, self.impactLine[0], self.impactLine[1], (255,0,255), 2)
+        cv2.putText(frame, "IMPACT LINE", (self.impactLine[0][0], self.impactLine[0][1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
 
     @staticmethod
     def readPoints(fpath):

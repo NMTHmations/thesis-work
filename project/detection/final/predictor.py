@@ -6,7 +6,7 @@ import numpy as np
 class Predictor:
 
     @abstractmethod
-    def predictImpact(self, center) -> np.ndarray:
+    def predictImpact(self, center, points):
         pass
 
 
@@ -54,13 +54,32 @@ class KFPredictor_2D(Predictor):
 
         return obj
 
-    def predictImpact(self, center) -> np.ndarray:
-        pass
+    def predictImpact(self, center, points):
+        pred, post = self._predictAndCorrect(center=center)
+
+        impactPoint = self._computeImpactOnLine(points)
 
 
+    def _computeImpactOnLine(self, points):
+        if not points:
+            return None,None
 
-    def util(self, center):
+        st = self.filter.statePost if self.filter.statePost else self.filter.statePre
 
+        state = np.array([float(st[0]), float(st[1]), float(st[2]), float(st[3])])
+        p = state[0:2]
+        v = state[2:4]
+
+        t, u = self._line_intersection_parametric(p, v, points)
+        impact_pt = None
+        if t is not None and t >= 0:
+            # compute impact point from prediction
+            impact_pt = p + v * t
+
+
+        return impact_pt
+
+    def _predictAndCorrect(self, center):
         prediction = self.filter.predict()
         if center is not []:
             measurements = np.array([[np.float32(center[0])], [np.float32(center[1])]])
@@ -68,10 +87,37 @@ class KFPredictor_2D(Predictor):
 
             postState = self.filter.statePost
 
-            postX,postY = float(postState[0]), float(postState[1])
-
         else:
+            postState = prediction
 
-            postX, postY = float(prediction[0]), float(prediction[1])
+        return prediction, postState
 
-        return prediction, postX, postY
+    def _line_intersection_parametric(self, p, v, points):
+        """
+        Solve p + v*t = a + u*(b-a) for t and u.
+        Returns (t, u) or (None, None) if degenerate.
+        """
+
+        p1,p2 = points[0], points[1]
+
+        # Solve 2x2: v * t - (b-a) * u = a - p
+        A = np.column_stack((v, -(p2 - p1)))  # 2x2
+        rhs = p1 - p
+        if np.linalg.matrix_rank(A) < 2:
+            return None, None
+        sol = np.linalg.solve(A, rhs)
+        t, u = float(sol[0]), float(sol[1])
+        return t, u
+
+    def _mapPrediction(self, points, impactPoint):
+        """Return u in [0,1] for projection of pt onto segment a->b"""
+
+        p1, p2 = points[0], points[1]
+
+        diff = p2 - p1
+        denom = (diff @ diff)
+        if denom == 0:
+            return 0.0
+        u = float((impactPoint - p1) @ diff / denom)
+        return np.clip(u, 0.0, 1.0)
+
