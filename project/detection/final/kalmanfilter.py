@@ -19,8 +19,8 @@ import time
 from typing import Optional, Tuple
 
 # ----------------- Config -----------------
-LEFT_DEVICE = "/dev/video5"
-RIGHT_DEVICE = "/dev/video3"
+LEFT_DEVICE = 1
+RIGHT_DEVICE = 0
 CALIB_FILE = "../../stereo_setup/parameters/calibration.xml"   # set your xml/yml path
 HSV_LOWER = (40, 40, 40)   # greenish range given by you (modify if needed)
 HSV_UPPER = (80, 255, 255)
@@ -258,15 +258,14 @@ def main():
             print("Frame read failed")
             break
         hL,wL = frameL.shape[:2]
-        hR,wR = frameR.shape[:2]
 
         # detect centers
         centerL, maskL = detect_ball_hsv(frameL, HSV_LOWER, HSV_UPPER, MIN_AREA)
         centerR, maskR = detect_ball_hsv(frameR, HSV_LOWER, HSV_UPPER, MIN_AREA)
 
         # draw masks small
-        mask_s = cv2.resize(cv2.cvtColor(maskL, cv2.COLOR_GRAY2BGR), (int(wL*0.25), int(hL*0.25)))
-        frameL[10:10+mask_s.shape[0], 10:10+mask_s.shape[1]] = mask_s
+        #mask_s = cv2.resize(cv2.cvtColor(maskL, cv2.COLOR_GRAY2BGR), (int(wL*0.25), int(hL*0.25)))
+        #frameL[10:10+mask_s.shape[0], 10:10+mask_s.shape[1]] = mask_s
 
         # draw centers
         if centerL is not None:
