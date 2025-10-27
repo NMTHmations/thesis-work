@@ -167,7 +167,7 @@ class DetermineStrike:
             X, Y = lista[0]
             self.PositionX.append(X)
             self.positionY.append(Y)
-            if self._getYbounce():
+            if self._getBounce():
                 self.PolinomialDegree = min(self.PolinomialDegree + 1, 6)
             coeff = np.polyfit(self.PositionX, self.positionY, self.PolinomialDegree)
             p = np.poly1d(coeff)
