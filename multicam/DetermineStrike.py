@@ -33,9 +33,15 @@ class DetermineStrike:
             return 2
         return 1
     
-    def _getYbounce(self):
-        dy1 = self.positionY[-1] - self.positionY[-2]
-        dy2 = self.positionY[-2] - self.positionY[-2]
+    def _getBounce(self):
+        dy1 = 0
+        dy2 = 0
+        if self.isFront:
+            dy1 = self.positionX[-1] - self.positionX[-2]
+            dy2 = self.positionX[-2] - self.positionX[-2]
+        else:
+            dy1 = self.positionY[-1] - self.positionY[-2]
+            dy2 = self.positionY[-2] - self.positionY[-2]
         if dy1 * dy2 < 0 and abs(dy1) > 3 and abs(dy2) > 3:
             return True
         return False
@@ -165,7 +171,6 @@ class DetermineStrike:
                 self.PolinomialDegree = min(self.PolinomialDegree + 1, 6)
             coeff = np.polyfit(self.PositionX, self.positionY, self.PolinomialDegree)
             p = np.poly1d(coeff)
-            #p = UnivariateSpline(self.PositionX, self.positionY, k=2, s=1)
             try:
                 for i in range(1,len(self.xList)+1):
                     x = int(self.xList[i-1])

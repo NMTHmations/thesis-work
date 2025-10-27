@@ -39,7 +39,7 @@ def processJson(path: str):
         frontStrike["isFront"] = True
         file.close()
         return frontStrike, dexterStrike, startStep, endStep, albument
-    return None, None, None
+    return None, None, None, None, None
 
 
 if __name__ == "__main__":
