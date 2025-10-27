@@ -11,7 +11,7 @@ from . import MotorClient
 class ParallelTools():
     
     
-    def __init__(self,camFront:str|int,camDexter:str|int, strikeFront, strikeDexter, startingStep : int = 0, maxStep :int = 30, albument: bool = False):
+    def __init__(self,camFront:str|int,camDexter:str|int, strikeFront, strikeDexter, albument: bool = False, startStep = 0, endStep = 600):
         self.sourceFront = camFront
         self.sourceDexter = camDexter
         self.strikeFront = strikeFront
@@ -20,9 +20,9 @@ class ParallelTools():
         self.InputSide = Queue()
         self.OutputSide = Queue()
         self.OutputFront = Queue()
-        self.startingPoint = startingStep
         self.MotorController = MotorClient.MotorClient()
-        self.maxStep = maxStep
+        self.startStep = startStep
+        self.endStep = endStep
         self.albument = albument
     
     def _cameraHandler(self,source,strikeEstimaterDetails,start_event,stop_event, isSide:bool, isGoalFront, isGoalDexter):
@@ -94,20 +94,21 @@ class ParallelTools():
         cv2.destroyAllWindows()
         exit()
 
-    def getGoalResults(self,start_event,stop_event, isGoalFront, isGoalDexter, startStep):
+    def getGoalResults(self,start_event,stop_event, isGoalFront, isGoalDexter, currentStep):
         start_event.wait()
         while not stop_event.is_set():
             if isGoalFront.value is not None and isGoalDexter.value is not None:
                 print("Goal!")
-                ratio = self.maxStep / 640
-                pointX = round(isGoalFront.value[0] * ratio)
-                steps = pointX - startStep.value
+                maxStep = self.endStep - self.startStep
+                ratio = maxStep / 640
+                pointX = min(self.startStep + round(isGoalFront.value[0] * ratio), self.endStep)
+                steps = pointX - currentStep
                 direction = True
                 if steps < 0:
                     direction = False
                 for i in range(abs(steps)):
                     self.MotorController.stepMotor(direction)
-                startStep.value = pointX
+                currentStep.value = pointX
                 isGoalFront.value = None
                 isGoalDexter.value = None
     
@@ -136,13 +137,13 @@ class ParallelTools():
     def CameraHandler(self):
         start_event = Event()
         stop_event = Event()
-        startStep = Value("i",self.startingPoint)
+        currentStep = Value("i",self.startStep)
         manager = Manager()
         isGoalFront = manager.Value(object, None)
         isGoalDexter = manager.Value(object, None)
         processFront = Process(target=self._cameraHandler,args=(self.sourceFront, self.strikeFront,start_event,stop_event,False, isGoalFront, isGoalDexter))
         processDexter = Process(target=self._cameraHandler,args=(self.sourceDexter, self.strikeDexter,start_event,stop_event,True, isGoalFront, isGoalDexter))
-        goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter, startStep))
+        goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter, currentStep))
         hailoGod = Process(target=self.HailoInferenceJudge,args=(start_event,stop_event))
         processFront.start()
         processDexter.start()

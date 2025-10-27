@@ -2,16 +2,17 @@ import supervision as sv
 import cv2
 import numpy as np
 import albumentations as abm
+from scipy.interpolate import UnivariateSpline
 
 class DetermineStrike:
-    def __init__(self,start,end,height:int, width:int,debug:bool = False,
+    def __init__(self,debug:bool = False,
                  acceptStart:tuple = None,acceptEnd:tuple = None,
-                 lowerHSV:list=None, upperHSV:list = None):
+                 lowerHSV:list=None, upperHSV:list = None, isFront:bool = False):
         self.tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1)
         self.label = sv.LabelAnnotator()
         self.annotator = sv.BoxAnnotator()
         self.trace_annotator = sv.TraceAnnotator()
-        self.xList = [i for i in range(start,end)]
+        self.xList = [i for i in range(0,640)]
         self.positionY = []
         self.PositionX = []
         self.isDebug = False
@@ -21,9 +22,23 @@ class DetermineStrike:
         self.acceptEnd = acceptEnd
         self.lowerHSV = lowerHSV
         self.upperHSV = upperHSV
-        self.height = height
-        self.width = width
+        self.isFront = isFront
+        self.PolinomialDegree = self._setDegree()
+        self.height = 480
+        self.width = 640
         self.class_names = ['Ball','Football']
+    
+    def _setDegree(self):
+        if self.isFront:
+            return 2
+        return 1
+    
+    def _getYbounce(self):
+        dy1 = self.positionY[-1] - self.positionY[-2]
+        dy2 = self.positionY[-2] - self.positionY[-2]
+        if dy1 * dy2 < 0 and abs(dy1) > 3 and abs(dy2) > 3:
+            return True
+        return False
         
     def _getIntersection(self,p1,p2,p3,p4):
         p1, p2, p3, p4 = map(np.array,(p1,p2,p3,p4))
@@ -146,8 +161,11 @@ class DetermineStrike:
             X, Y = lista[0]
             self.PositionX.append(X)
             self.positionY.append(Y)
-            coeff = np.polyfit(self.PositionX, self.positionY, 2) # polynomial regression (2nd grade)
+            if self._getYbounce():
+                self.PolinomialDegree = min(self.PolinomialDegree + 1, 6)
+            coeff = np.polyfit(self.PositionX, self.positionY, self.PolinomialDegree)
             p = np.poly1d(coeff)
+            #p = UnivariateSpline(self.PositionX, self.positionY, k=2, s=1)
             try:
                 for i in range(1,len(self.xList)+1):
                     x = int(self.xList[i-1])
@@ -170,3 +188,4 @@ class DetermineStrike:
     def flushPositions(self):
         self.PositionX = []
         self.positionY = []
+        self.PolinomialDegree = self._setDegree()

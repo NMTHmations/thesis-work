@@ -1,10 +1,4 @@
 {
-    "startF": 50,
-    "endF": 540,
-    "startS": 50,
-    "endS": 540,
-    "height": 480,
-    "width": 640,
     "acceptStartF": [0, 480],
     "acceptEndF": [640, 480],
     "acceptStartS": [150, 0],
