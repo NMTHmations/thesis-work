@@ -5,4 +5,3 @@ from dataclasses import dataclass
 class FrameItem:
     frameID: int
     frame: any
-    timestamp: float

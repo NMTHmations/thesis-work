@@ -75,10 +75,15 @@ class ColorDetectorModel(DetectionModel):
         self.upperHSV = upperHSV
 
     def infer(self, frame):
-        mask = self._getMask(frame)
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        try:
+            mask = self._getMask(frame)
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            detections = self.getDetectionFromResult(contours, None)
 
-        return contours
+            return detections
+        except Exception as e:
+            return sv.Detections.empty()
+
 
     def getDetectionFromResult(self, result, originalWH: Optional[Tuple[int, int]]) -> sv.Detections:
         bboxList = []
@@ -87,12 +92,13 @@ class ColorDetectorModel(DetectionModel):
 
         detections = sv.Detections.empty()
 
-        for r in result:
-            if cv2.contourArea(r) > 100:
-                x, y, w, h = cv2.boundingRect(r)
-                bboxList.append([x, y, x + w, y + h])  # xyxy formátum
-                classIDList.append(0)  # ha van osztály, ide teheted a class ID-t
-                confList.append(1)
+        r = result[0]
+
+        if cv2.contourArea(r) > 100:
+            x, y, w, h = cv2.boundingRect(r)
+            bboxList.append([x, y, x + w, y + h])  # xyxy formátum
+            classIDList.append(0)  # ha van osztály, ide teheted a class ID-t
+            confList.append(1)
 
 
         if len(bboxList) > 0:

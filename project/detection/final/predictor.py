@@ -3,121 +3,128 @@ from abc import abstractmethod
 import cv2
 import numpy as np
 
-class Predictor:
 
-    @abstractmethod
-    def predictImpact(self, center, points):
-        pass
-
-
-class KFPredictor_2D(Predictor):
+class KFPredictor:
     """
     Opencv Kalman Filter
     https://docs.opencv.org/3.4/dd/d6a/classcv_1_1KalmanFilter.html#af19be9c0630d0f658bdbaea409a35cda
     """
-    def __init__(self,dt):
-        self.filter = self._createFilter(dt)
+    def __init__(self,dimensions, dt):
+        self.dimensions = dimensions
+        self.dt = dt
+        self.filter = self._createFilter(dimensions, dt)
 
-    def _createFilter(self, dt : int) -> cv2.KalmanFilter:
-        obj = cv2.KalmanFilter(4, 2)
-        obj.transitionMatrix = np.array(
-            [
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, 1, 0 ],
-                [0, 0, 0, 1 ],
-            ], dtype=np.float32
-        )
+    def _createFilter(self, dims : int, dt : float) -> cv2.KalmanFilter:
 
-        obj.measurementMatrix = np.array(
-            [
-                [1, 0, 0, 0],
-                [0, 1, 0, 0]
-            ], dtype=np.float32
-        )
+        # (position, velocity) e.g. dims = 2 -> [x,y,vx,vy]
+        stateSize = 2 * dims
+
+        measurementSize = dims
+
+        obj = cv2.KalmanFilter(stateSize, measurementSize)
+
+        obj.transitionMatrix = np.eye(stateSize, dtype=np.float32)
+        for i in range(dims):
+            obj.transitionMatrix[i, i + dims] = dt
+
+        obj.measurementMatrix = np.zeros((measurementSize, stateSize), dtype=np.float32)
+        for i in range(dims):
+            obj.measurementMatrix[i, i] = 1.0
+
 
         #Process noise covariance (Q)
         qPosition = 1e-2 #0.01
         qVelocity = 1e-2 #0.01
 
-        obj.processNoiseCov = np.diag(
-            [qPosition,qPosition,qVelocity,qVelocity]
-        ).astype(np.float32)
+        obj.processNoiseCov = np.eye(stateSize, dtype=np.float32)
+        for i in range(dims):
+            obj.processNoiseCov[i, i] = qPosition
+            obj.processNoiseCov[i + dims, i + dims] = qVelocity
 
-        #Measurement noise (R)
-        rMeasurement = 1.0
 
-        obj.measurementNoiseCov = np.eye(2, dtype=np.float32) * rMeasurement
-
+        obj.measurementNoiseCov = np.eye(measurementSize, dtype=np.float32)
         #Posterior error estimate (P)
-        obj.errorCovPost = np.eye(4, dtype=np.float32)
+        obj.errorCovPost = np.eye(stateSize, dtype=np.float32)
 
         return obj
 
-    def predictImpact(self, center, points):
-        pred, post = self._predictAndCorrect(center=center)
 
-        impactPoint = self._computeImpactOnLine(points)
-
-
-    def _computeImpactOnLine(self, points):
-        if not points:
-            return None,None
-
-        st = self.filter.statePost if self.filter.statePost else self.filter.statePre
-
-        state = np.array([float(st[0]), float(st[1]), float(st[2]), float(st[3])])
-        p = state[0:2]
-        v = state[2:4]
-
-        t, u = self._line_intersection_parametric(p, v, points)
-        impact_pt = None
-        if t is not None and t >= 0:
-            # compute impact point from prediction
-            impact_pt = p + v * t
-
-
-        return impact_pt
-
-    def _predictAndCorrect(self, center):
+    def _predictAndCorrect(self, measurement):
         prediction = self.filter.predict()
-        if center is not []:
-            measurements = np.array([[np.float32(center[0])], [np.float32(center[1])]])
-            self.filter.correct(measurements)
+        if measurement is not [] or not () and not None:
+            measurement = np.array([[np.float32(measurement[0])], [np.float32(measurement[1])]])
+            self.filter.correct(measurement)
 
             postState = self.filter.statePost
 
         else:
             postState = prediction
 
-        return prediction, postState
+        x,y,vx,vy = self.filter.statePost if self.filter.statePost is not None else prediction
 
-    def _line_intersection_parametric(self, p, v, points):
+        state = np.array([x,y,vx,vy]).astype(np.float32)
+
+        return state
+
+    def predictImpact(self, measurement : tuple[float, float], impactLinePts : tuple[tuple[int,int],tuple[int,int]]):
         """
-        Solve p + v*t = a + u*(b-a) for t and u.
-        Returns (t, u) or (None, None) if degenerate.
+        Updates filter, predicts trajectory, and finds intersection with impact line.
+
+        Args:
+            measurement: (x, y) tuple — latest detection
+            impactLinePts: [(x1,y1), (x2,y2)] — two endpoints of the impact line
+
+        Returns:
+            dict with fields:
+                - 'impactPt': np.ndarray or None (pixel coords)
+                - 'mappedImpact': np.ndarray or None (mapped impact point on line)
         """
 
-        p1,p2 = points[0], points[1]
+        if measurement == () or None:
+            return None,None
 
-        # Solve 2x2: v * t - (b-a) * u = a - p
-        A = np.column_stack((v, -(p2 - p1)))  # 2x2
-        rhs = p1 - p
+        state = self._predictAndCorrect(measurement)
+        p = state[0:2]
+        v = state[2:4]
+
+        # If the velocity is too small, no reliable intersection
+
+        if abs(np.linalg.norm(v)) < 1.0:
+            return None, None
+
+        # Calculate intersection
+        impactPt, mappedImpactPt = self._calculateImpactOnLine(p, v, impactLinePts)
+        return impactPt, mappedImpactPt
+
+    # -----------------------------
+    # Helper: intersection
+    # -----------------------------
+    def _calculateImpactOnLine(self, p, v, impactLinePts):
+        """
+        Calculates intersection point of a parametric line p+v*t with a segment a->b.
+        Returns (impact_point, u_param) or (None, None)
+        """
+        a = np.array(impactLinePts[0], dtype=float)
+        b = np.array(impactLinePts[1], dtype=float)
+
+        A = np.column_stack((v, -(b - a)))  # 2x2 system
+        rhs = a - p
+
         if np.linalg.matrix_rank(A) < 2:
             return None, None
-        sol = np.linalg.solve(A, rhs)
+
+        sol = np.linalg.solve(A, rhs).flatten()
         t, u = float(sol[0]), float(sol[1])
-        return t, u
 
-    def _mapPrediction(self, points, impactPoint):
-        """Return u in [0,1] for projection of pt onto segment a->b"""
+        if t < 0:  # intersection is "behind" the current position
+            return None, None
 
-        p1, p2 = points[0], points[1]
+        impact_point = p + v * t
+        return impact_point, u
 
-        diff = p2 - p1
-        denom = (diff @ diff)
-        if denom == 0:
-            return 0.0
-        u = float((impactPoint - p1) @ diff / denom)
-        return np.clip(u, 0.0, 1.0)
 
+    def reset(self):
+        return self._createFilter(dims=self.dimensions, dt=self.dt)
+
+    def __str__(self):
+        return f"Kalman Filter in {self.dimensions} dimensions"

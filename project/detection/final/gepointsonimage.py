@@ -1,91 +1,124 @@
+#!/usr/bin/env python3
 import cv2
-import json
+import numpy as np
 import argparse
+import os
+import json
 
-from project.detection.final.calc import interpolate
-
-points_clicked = []  # list of clicked points
-
-def mouse_callback(event, x, y, flags, param):
-    global points_clicked
-    img = param
-    if event == cv2.EVENT_LBUTTONDOWN and len(points_clicked) < 4:
-        points_clicked.append((x, y))
-        print(f"Pont kiválasztva: ({x},{y})")
-        # Rajzoljuk a pontokat
-        for px, py in points_clicked:
-            cv2.circle(img, (px, py), 5, (0, 0, 255), -1)
-        cv2.imshow("Image", img)
+from project.detection.final.finalMain import Camera, Window
 
 
-def main(args):
-    global points_clicked
+class StereoPointSelector:
+    def __init__(self, cameraFront: Camera, cameraSide: Camera, output_dir="./"):
+        self.output_dir = output_dir
+        self.pointsFront = []
+        self.pointsSide = []
 
-    fpath = args.fpath
-    prefix = args.pref
-    # Kamera
-    cap = cv2.VideoCapture(args.cam)
-    if not cap.isOpened():
-        print("❌ Nem sikerült megnyitni a kamerát!")
-        return
+        self.frontWindow = Window("Front Camera", 896, 504)
+        self.sideWindow = Window("Side Camera", 896, 504)
 
-    ret, frame = cap.read()
-    cap.release()
-    if not ret:
-        print("❌ Nem sikerült képet készíteni!")
-        return
+        self.camFront = cameraFront
+        self.camSide = cameraSide
 
-    img = frame.copy()
-    cv2.imshow("Image", img)
-    cv2.setMouseCallback("Image", mouse_callback, img)
+        if not self.camFront.camera.isOpened() or not self.camSide.camera.isOpened():
+            raise RuntimeError("Nem sikerült mindkét kamerát megnyitni.")
 
-    print("👉 Kattints a képen a négy sarokpontot (TOPL, BOTL, TOPR, BOTR) sorrendben. ESC a kilépéshez.")
+        cv2.setMouseCallback(self.frontWindow.name, self._mouse_front)
+        cv2.setMouseCallback(self.sideWindow.name, self._mouse_side)
 
-    while True:
-        key = cv2.waitKey(1) & 0xFF
-        if key == 27:  # ESC
-            break
-        if len(points_clicked) == 4:
-            break
+    # --- egér callbackek ---
+    def _mouse_front(self, event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            if len(self.pointsFront) < 2:
+                self.pointsFront.append((x, y))
+                print(f"[FRONT] Pont hozzáadva: {(x, y)}")
+            else:
+                print("[FRONT] Már két pont van, nyomj 'r'-t a resethez.")
 
-    cv2.destroyAllWindows()
+    def _mouse_side(self, event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            if len(self.pointsSide) < 2:
+                self.pointsSide.append((x, y))
+                print(f"[SIDE] Pont hozzáadva: {(x, y)}")
+            else:
+                print("[SIDE] Már két pont van, nyomj 'r'-t a resethez.")
 
-    if len(points_clicked) != 4:
-        print("❌ Nem választottad ki a 4 sarokpontot!")
-        return
+    # --- pontok kirajzolása ---
+    def _draw_points(self, frame, points, color):
+        for i, p in enumerate(points):
+            cv2.circle(frame, p, 6, color, -1)
+            cv2.putText(frame, f"{i + 1}", (p[0] + 8, p[1] - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-    # Elnevezett sarokpontok
-    S_TOPL, S_BOTL, S_TOPR, S_BOTR = points_clicked
+    # --- pontok mentése JSON-ba ---
+    def _save_points(self):
+        os.makedirs(self.output_dir, exist_ok=True)
 
-    # Generáljuk a további pontokat
-    points_dict = {
-        prefix+"_TOPL": S_TOPL,
-        prefix+"_BOTL": S_BOTL,
-        prefix+"_TOPR": S_TOPR,
-        prefix+"_BOTR": S_BOTR,
-        prefix+"_PT1": interpolate(S_TOPL, S_BOTL, 1/6),
-        prefix+"_PT2": interpolate(S_TOPL, S_BOTL, 1/3),
-        prefix+"_PB1": interpolate(S_TOPR, S_BOTR, 1/6),
-        prefix+"_PB2": interpolate(S_TOPR, S_BOTR, 1/3),
-        prefix+"_GOALT": interpolate(S_BOTL, S_BOTR, 1/3),
-        prefix+"_GOALB": interpolate(S_BOTL, S_BOTR, 2/3),
-    }
+        front_path = os.path.join(self.output_dir, "pointsFront.json")
+        side_path = os.path.join(self.output_dir, "pointsSide.json")
 
-    print("✅ Pontok meghatározva:")
-    for k, v in points_dict.items():
-        print(f"{k}: {v}")
+        data_front = {"GOAL1": self.pointsFront[0], "GOAL2": self.pointsFront[1]}
+        data_side = {"GOAL1": self.pointsSide[0], "GOAL2": self.pointsSide[1]}
 
-    # Mentés JSON-be dictionary formában
-    with open(fpath, "w") as f:
-        json.dump(points_dict, f, indent=4)
-    print(f"✅ Pontok elmentve a(z) {fpath} fájlba")
+        with open(front_path, "w", encoding="utf-8") as f:
+            json.dump(data_front, f, indent=4, ensure_ascii=False)
+        with open(side_path, "w", encoding="utf-8") as f:
+            json.dump(data_side, f, indent=4, ensure_ascii=False)
+
+        print(f"[INFO] Pontok elmentve JSON formátumban:\n - {front_path}\n - {side_path}")
+
+    # --- fő futtató függvény ---
+    def run(self):
+        print("Bal egérgombbal jelölj 2-2 pontot mindkét kameraképen.")
+        print("Nyomj 's'-t a mentéshez, 'r'-t a törléshez, 'q' vagy ESC a kilépéshez.")
+
+        while True:
+            successFront, frameFront = self.camFront.capture()
+            successSide, frameSide = self.camSide.capture()
+
+            if not successFront or not successSide:
+                print("Nem sikerült képet olvasni a kamerákból.")
+                break
+
+            self._draw_points(frameFront, self.pointsFront, (0, 255, 0))
+            self._draw_points(frameSide, self.pointsSide, (0, 255, 0))
+
+            self.frontWindow.showFrame(frameFront)
+            self.sideWindow.showFrame(frameSide)
+
+            key = cv2.waitKey(1) & 0xFF
+            if key == 27 or key == ord('q'):
+                break
+            elif key == ord('r'):
+                self.pointsFront.clear()
+                self.pointsSide.clear()
+                print("[RESET] Mindkét kamera pontjai törölve.")
+            elif key == ord('s'):
+                if len(self.pointsFront) == 2 and len(self.pointsSide) == 2:
+                    self._save_points()
+                else:
+                    print("[FIGYELEM] Nem jelöltél ki 2-2 pontot mindkét kamerán!")
+
+        del self.camFront
+        del self.camSide
+        cv2.destroyAllWindows()
 
 
+# --- PROGRAM INDÍTÁSA ---
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--cam", type=str, default="/dev/video3", help="Kamera index")
-    parser.add_argument("--fpath", type=str, default="points.json", help="File path")
-    parser.add_argument("--pref", type=str, default="F", help="Parameter prefixes")
-
+    parser = argparse.ArgumentParser(description="Stereo kamera pontkijelölő JSON mentéssel")
+    parser.add_argument("--front", type=int, default=0, help="Első kamera indexe (pl. 0)")
+    parser.add_argument("--side", type=int, default=1, help="Oldalsó kamera indexe (pl. 1)")
+    parser.add_argument("--out", type=str, default="./", help="Kimeneti mappa")
+    parser.add_argument("--fps", type=float, default=60.0, help="Kamera FPS")
+    parser.add_argument("--width", type=int, default=1280, help="Kamera szélesség")
+    parser.add_argument("--height", type=int, default=720, help="Kamera magasság")
     args = parser.parse_args()
-    main(args)
+
+    camFront = Camera(args.front, args.width, args.height, args.fps)
+    camSide = Camera(args.side, args.width, args.height, args.fps)
+
+    selector = StereoPointSelector(cameraFront=camFront,
+                                   cameraSide=camSide,
+                                   output_dir=args.out)
+    selector.run()

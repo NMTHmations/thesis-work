@@ -59,7 +59,7 @@ class ImageCapturer():
     
     """
     @staticmethod
-    def captureCalibrationImages(cam1,cam2):
+    def captureCalibrationImages(leftCamera,rightCamera):
 
         def create_dirs():
 
@@ -79,9 +79,23 @@ class ImageCapturer():
 
         create_dirs()
 
-        capRight = cv2.VideoCapture(cam1)
-        capLeft = cv2.VideoCapture(cam2)
+        capRight = cv2.VideoCapture(rightCamera)
+        capLeft = cv2.VideoCapture(leftCamera)
 
+        capRight.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        capRight.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        capLeft.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        capLeft.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+
+        previewL = "PreviewL"
+        previewR = "PreviewR"
+
+        cv2.namedWindow(previewL, cv2.WINDOW_NORMAL)
+        cv2.namedWindow(previewR, cv2.WINDOW_NORMAL)
+
+        cv2.resizeWindow(previewL, (640, 360))
+        cv2.resizeWindow(previewR, (640, 360))
 
         if not capRight.isOpened():
             raise IOError("Couldn't open webcam1 (Right).")
@@ -95,11 +109,19 @@ class ImageCapturer():
             successRight, frameRight = capRight.read()
             successLeft, frameLeft = capLeft.read()
 
+            showImgRight = frameRight.copy()
+            showImgLeft = frameLeft.copy()
+
+            cv2.putText(showImgLeft,f"Left camera: {leftCamera}",(10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+            cv2.putText(showImgRight, f"Right camera: {rightCamera}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+            cv2.circle(showImgLeft,(640,360),10,(0,0,255),cv2.FILLED)
+            cv2.circle(showImgRight,(640,360),10,(0,0,255),cv2.FILLED)
+
             if not successLeft or not successRight:
                 raise Exception("Failed to read frame.")
 
-            cv2.imshow("left", frameLeft)
-            cv2.imshow("right", frameRight)
+            cv2.imshow(previewL, showImgLeft)
+            cv2.imshow(previewR, showImgRight)
 
             showKey = cv2.waitKey(1) & 0xFF
             if showKey == ord('q'):
@@ -113,8 +135,12 @@ class ImageCapturer():
                 rightWindowName = "capturedRightFrame"
                 leftWindowName = "capturedLeftFrame"
 
-                cv2.namedWindow(rightWindowName, cv2.WINDOW_AUTOSIZE)
-                cv2.namedWindow(leftWindowName, cv2.WINDOW_AUTOSIZE)
+                cv2.namedWindow(rightWindowName, cv2.WINDOW_NORMAL)
+                cv2.namedWindow(leftWindowName, cv2.WINDOW_NORMAL)
+
+                cv2.resizeWindow(rightWindowName, 640, 360)
+                cv2.resizeWindow(leftWindowName, 640, 360)
+
                 cv2.imshow(rightWindowName, capturedRight)
                 cv2.imshow(leftWindowName, capturedLeft)
 
@@ -129,7 +155,7 @@ class ImageCapturer():
                 cv2.destroyWindow(leftWindowName)
 
 
-            if COUNT == 10:
+            if COUNT == 20:
                 cv2.destroyAllWindows()
                 break
 

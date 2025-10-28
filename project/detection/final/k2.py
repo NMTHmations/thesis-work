@@ -26,8 +26,8 @@ from collections import deque
 # ---------------------------
 # Config / defaults
 # ---------------------------
-DEFAULT_HSV_LOWER = (40, 40, 40)      # white-ish (change for your ball color)
-DEFAULT_HSV_UPPER = (80, 255, 255)
+DEFAULT_HSV_LOWER = (45, 167, 0)      # white-ish (change for your ball color)
+DEFAULT_HSV_UPPER = (89, 255, 255)
 
 
 PLOT_HISTORY = 200  # how many predicted points to show in plot
@@ -263,7 +263,7 @@ def main():
 
             # draw predicted current point
             cv2.circle(frame, (int(px), int(py)), 6, (0,0,255), -1)
-            cv2.putText(frame, f"pred: {int(px)},{int(py)}", (int(px)+10, int(py)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,255), 1)
+            cv2.putText(frame, f"pred: {int(px)},{int(py)}", (int(px)+10, int(py)), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0,0,0), 1)
 
             # compute future intersection with impact_line (using current posterior state and velocity)
             # state vector: [x,y,vx,vy]
@@ -280,12 +280,12 @@ def main():
                     # compute impact point from prediction
                     impact_pt = p + v * t
                     # map to segment parameter u
-                    u_mapped = project_point_on_segment(impact_pt, a, b)
 
                     # draw impact on image
                     ix, iy = int(round(impact_pt[0])), int(round(impact_pt[1]))
                     cv2.circle(frame, (ix, iy), 8, (255,0,0), -1)
-                    cv2.putText(frame, f"Impact u={u_mapped:.3f}", (100,100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,0,0), 1)
+
+                    cv2.putText(frame, f"Impact u={u:.3f}", (100,200), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,200,200 ), 1)
                 # else no valid intersection yet
 
         # update prev center
