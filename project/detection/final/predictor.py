@@ -92,6 +92,7 @@ class KFPredictor:
         if abs(np.linalg.norm(v)) < 1.0:
             return None, None
 
+
         # Calculate intersection
         impactPt, mappedImpactPt = self._calculateImpactOnLine(p, v, impactLinePts)
         return impactPt, mappedImpactPt
