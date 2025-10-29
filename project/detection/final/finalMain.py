@@ -26,8 +26,8 @@ from project.detection.types.Window import Window
 # ----------------------------
 def argsParser():
     parser = ArgumentParser()
-    parser.add_argument("--camFront", type=int, default=0, help="Front Kamera index")
-    parser.add_argument("--camSide", type=int, default=1, help="Side Kamera index")
+    parser.add_argument("--camFront", type=str, default="/dev/video3", help="Front Kamera index")
+    parser.add_argument("--camSide", type=str, default="/dev/video5", help="Side Kamera index")
     parser.add_argument("--fps", type=float, default=60.0, help="Kamera FPS")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
@@ -57,7 +57,7 @@ def main(args):
     # --- megjelenítő ablakok ---
     frontWindow = Window("Front Preview", 896, 504)
     sideWindow = Window("Side Preview", 896, 504)
-    goalWindow = Window("Goal Preview", 640, 360)
+    #goalWindow = Window("Goal Preview", 640, 360)
 
     # --- pontok betöltése JSON-ból ---
     pointsFront = loadPoints("pointsFront.json")
@@ -87,7 +87,7 @@ def main(args):
     counter = 0
 
     while not stopEvent.is_set():
-        goalframe = createVisualizeFrame()
+        #goalframe = createVisualizeFrame()
 
         successFront, frameFront = cameraFront.capture()
         successSide, frameSide = cameraSide.capture()
@@ -149,7 +149,7 @@ def main(args):
         # --- ablak megjelenítés ---
         frontWindow.showFrame(annotatedFront)
         sideWindow.showFrame(annotatedSide)
-        goalWindow.showFrame(goalframe)
+        #goalWindow.showFrame(goalframe)
 
         key = cv2.waitKey(1) & 0xFF
         if key == 27 or key == ord('q'):

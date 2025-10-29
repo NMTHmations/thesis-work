@@ -82,6 +82,7 @@ class ColorDetectorModel(DetectionModel):
 
             return detections
         except Exception as e:
+            print("Empty det")
             return sv.Detections.empty()
 
 
@@ -92,7 +93,7 @@ class ColorDetectorModel(DetectionModel):
 
         detections = sv.Detections.empty()
 
-        r = result[0]
+        r = max(result, key=cv2.contourArea)
 
         if cv2.contourArea(r) > 100:
             x, y, w, h = cv2.boundingRect(r)

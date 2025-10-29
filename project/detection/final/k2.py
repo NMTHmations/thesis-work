@@ -120,7 +120,7 @@ def detect_ball_hsv(frame, hsv_lower, hsv_upper, min_area=80):
 # ---------------------------
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--camera", type=int, default=0)
+    parser.add_argument("--camera", type=str, default="/dev/video3")
     parser.add_argument("--fps", type=int, default=60)
     parser.add_argument("--hsv-lower", nargs=3, type=int, default=list(DEFAULT_HSV_LOWER))
     parser.add_argument("--hsv-upper", nargs=3, type=int, default=list(DEFAULT_HSV_UPPER))

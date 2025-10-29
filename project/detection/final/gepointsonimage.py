@@ -107,8 +107,8 @@ class StereoPointSelector:
 # --- PROGRAM INDÍTÁSA ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stereo kamera pontkijelölő JSON mentéssel")
-    parser.add_argument("--front", type=int, default=0, help="Első kamera indexe (pl. 0)")
-    parser.add_argument("--side", type=int, default=1, help="Oldalsó kamera indexe (pl. 1)")
+    parser.add_argument("--front", type=str, default="/dev/video5", help="Első kamera indexe (pl. 0)")
+    parser.add_argument("--side", type=str, default="/dev/video3", help="Oldalsó kamera indexe (pl. 1)")
     parser.add_argument("--out", type=str, default="./", help="Kimeneti mappa")
     parser.add_argument("--fps", type=float, default=60.0, help="Kamera FPS")
     parser.add_argument("--width", type=int, default=1280, help="Kamera szélesség")
