@@ -78,6 +78,7 @@ class PointSelector:
         del self.window
 
 
+
 # --- PROGRAM INDÍTÁSA ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stereo kamera pontkijelölő JSON mentéssel")
