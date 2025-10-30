@@ -15,7 +15,7 @@ from project.detection.types.Window import Window
 
 def argsParser():
     parser = ArgumentParser()
-    parser.add_argument("--camera", type=int, default=0, help="Camera id")
+    parser.add_argument("--camera", type=str, default="/dev/video3", help="Camera id")
     parser.add_argument("--fps", type=float, default=60.0, help="Kamera FPS")
     parser.add_argument("--width", type=int, default=1280, help="Width of frames record")
     parser.add_argument("--height", type=int, default=720, help="Height of frames record")
@@ -44,7 +44,7 @@ def main(args):
 
     # --- megjelenítő ablakok ---
     window = Window("Front Preview", 896, 504)
-    goalWindow = Window("Goal Preview", 896, 504)
+    #goalWindow = Window("Goal Preview", 896, 504)
 
     # --- pontok betöltése JSON-ból ---
     points = loadPoints("points.json")
@@ -77,12 +77,12 @@ def main(args):
     prevCenter = ()
     center = ()
 
-    visualizer = GoalVisualizer(fpath="goal.png")
+    #visualizer = GoalVisualizer(fpath="goal.png")
 
     while success:
 
         success, frame = camera.capture()
-        goalFrame = visualizer.createFrame()
+        #goalFrame = visualizer.createFrame()
 
 
         if not success:
@@ -116,7 +116,7 @@ def main(args):
                 #print(f"[CONTROL] ImpactPoint sent: {lastImpactPoint}, u={mappedImpact:.3f}")
 
         annotated = frame.copy()
-        annotatedGoalFrame = goalFrame.copy()
+        #annotatedGoalFrame = goalFrame.copy()
 
         try:
 
@@ -132,14 +132,14 @@ def main(args):
                 cv2.circle(annotated, lastImpactPoint, 10, (255,0,0), -1)
                 cv2.putText(annotated, f"Impact u={mappedImpact:.3f}", (lastImpactPoint[0],lastImpactPoint[1]-10),cv2.FONT_HERSHEY_SIMPLEX,0.6, (255,0,0), 2)
 
-            annotatedGoalFrame = visualizer.annotateFrame(annotatedGoalFrame,0.1, lastMappedImpactPoint)
+            #annotatedGoalFrame = visualizer.annotateFrame(annotatedGoalFrame,0.1, lastMappedImpactPoint)
 
         except:
             pass
 
         # --- ablak megjelenítés ---
         window.showFrame(annotated)
-        goalWindow.showFrame(annotatedGoalFrame)
+        #goalWindow.showFrame(annotatedGoalFrame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == 27 or key == ord('q'):
@@ -152,7 +152,7 @@ def main(args):
 
     del window
     del camera
-    del goalWindow
+    #del goalWindow
 
 
 # ----------------------------
