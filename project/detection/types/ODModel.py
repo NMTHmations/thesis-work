@@ -82,7 +82,6 @@ class ColorDetectorModel(DetectionModel):
 
             return detections
         except Exception as e:
-            print("Empty det")
             return sv.Detections.empty()
 
 

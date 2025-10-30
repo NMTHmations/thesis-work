@@ -7,6 +7,78 @@ import json
 
 from project.detection.final.finalMain import Camera, Window
 
+class PointSelector:
+    def __init__(self, camera : Camera, outputDir="./"):
+        self.outputDir = outputDir
+        self.points = []
+
+        self.window = Window(f"Preview{hash(camera)}", 896, 504)
+        self.camera = camera
+
+        cv2.setMouseCallback(self.window.name, self._mouse_cb)
+
+    def _mouse_cb(self, event, x, y):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            if len(self.points) < 2:
+                self.points.append((x, y))
+                print(f"Point added: {(x, y)}")
+            else:
+                print("Already selected two points. Press "r" to reset")
+
+    # --- pontok kirajzolása ---
+    def _draw_points(self, frame, points, color):
+        for i, p in enumerate(points):
+            cv2.circle(frame, p, 6, color, -1)
+            cv2.putText(frame, f"{i + 1}", (p[0] + 8, p[1] - 8),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+
+    # --- pontok mentése JSON-ba ---
+    def _save_points(self):
+        os.makedirs(self.outputDir, exist_ok=True)
+
+        fpath = os.path.join(self.outputDir, "points.json")
+
+        data_front = {"GOAL1": self.points[0], "GOAL2": self.points[1]}
+
+        with open(fpath, "w", encoding="utf-8") as f:
+            json.dump(data_front, f, indent=4, ensure_ascii=False)
+
+        print(f"[INFO] Points saved:\n - {fpath}")
+
+    # --- fő futtató függvény ---
+    def run(self):
+        print("Select two point by clicking left mouse button")
+        print("Press 'r' to reset, 's' to save points, 'q' or ESC to exit.")
+
+        while True:
+
+            success, frame = self.camera.capture()
+
+            if not success:
+                print("Couldn't capture frame.")
+                break
+
+            self._draw_points(frame, self.points, (0, 255, 0))
+
+            self.window.showFrame(frame)
+
+            key = cv2.waitKey(1) & 0xFF
+            if key == 27 or key == ord('q'):
+                break
+            elif key == ord('r'):
+                self.points.clear()
+                print("[RESET] Points reset.")
+            elif key == ord('s'):
+                if len(self.points) == 2:
+                    self._save_points()
+                else:
+                    print("[WARNING] You must select two points first.")
+
+        del self.camera
+        del self.window
+
+
+
 
 class StereoPointSelector:
     def __init__(self, cameraFront: Camera, cameraSide: Camera, output_dir="./"):
@@ -107,8 +179,8 @@ class StereoPointSelector:
 # --- PROGRAM INDÍTÁSA ---
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stereo kamera pontkijelölő JSON mentéssel")
-    parser.add_argument("--front", type=str, default="/dev/video5", help="Első kamera indexe (pl. 0)")
-    parser.add_argument("--side", type=str, default="/dev/video3", help="Oldalsó kamera indexe (pl. 1)")
+    parser.add_argument("--front", type=int, default=1, help="Első kamera indexe (pl. 0)")
+    parser.add_argument("--side", type=int, default=0, help="Oldalsó kamera indexe (pl. 1)")
     parser.add_argument("--out", type=str, default="./", help="Kimeneti mappa")
     parser.add_argument("--fps", type=float, default=60.0, help="Kamera FPS")
     parser.add_argument("--width", type=int, default=1280, help="Kamera szélesség")

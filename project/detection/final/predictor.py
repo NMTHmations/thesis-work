@@ -1,131 +1,136 @@
-from abc import abstractmethod
-
 import cv2
 import numpy as np
 
 
 class KFPredictor:
     """
-    Opencv Kalman Filter
-    https://docs.opencv.org/3.4/dd/d6a/classcv_1_1KalmanFilter.html#af19be9c0630d0f658bdbaea409a35cda
+    Optimalizált OpenCV Kalman Filter alapú 2D pozíció- és becsapódásbecslés.
     """
-    def __init__(self,dimensions, dt):
-        self.dimensions = dimensions
+
+    def __init__(self, dt: float):
         self.dt = dt
-        self.filter = self._createFilter(dimensions, dt)
+        self.filter = self._createFilter(dt)
+        self.initialized = False
+        self.previousMeasurement = None
 
-    def _createFilter(self, dims : int, dt : float) -> cv2.KalmanFilter:
+    # -----------------------------
+    # Kalman-szűrő létrehozása 2D-re
+    # -----------------------------
+    def _createFilter(self, dt: float) -> cv2.KalmanFilter:
+        kf = cv2.KalmanFilter(4, 2)  # state [x,y,vx,vy], measurement [x,y]
 
-        # (position, velocity) e.g. dims = 2 -> [x,y,vx,vy]
-        stateSize = 2 * dims
+        # Transition matrix
+        kf.transitionMatrix = np.array([
+            [1, 0, dt, 0],
+            [0, 1, 0, dt],
+            [0, 0, 1, 0 ],
+            [0, 0, 0, 1 ]
+        ], dtype=np.float32)
 
-        measurementSize = dims
+        # Measurement matrix
+        kf.measurementMatrix = np.array([
+            [1, 0, 0, 0],
+            [0, 1, 0, 0]
+        ], dtype=np.float32)
 
-        obj = cv2.KalmanFilter(stateSize, measurementSize)
+        # Process noise covariance
+        q_pos = 1e-2
+        q_vel = 1e-2
+        kf.processNoiseCov = np.diag([q_pos, q_pos, q_vel, q_vel]).astype(np.float32)
 
-        obj.transitionMatrix = np.eye(stateSize, dtype=np.float32)
-        for i in range(dims):
-            obj.transitionMatrix[i, i + dims] = dt
+        # Measurement noise covariance
+        r_meas = 1.0
+        kf.measurementNoiseCov = np.eye(2, dtype=np.float32) * r_meas
 
-        obj.measurementMatrix = np.zeros((measurementSize, stateSize), dtype=np.float32)
-        for i in range(dims):
-            obj.measurementMatrix[i, i] = 1.0
+        # Posteriori error estimate
+        kf.errorCovPost = np.eye(4, dtype=np.float32)
 
+        return kf
 
-        #Process noise covariance (Q)
-        qPosition = 1e-2 #0.01
-        qVelocity = 1e-2 #0.01
-
-        obj.processNoiseCov = np.eye(stateSize, dtype=np.float32)
-        for i in range(dims):
-            obj.processNoiseCov[i, i] = qPosition
-            obj.processNoiseCov[i + dims, i + dims] = qVelocity
-
-
-        obj.measurementNoiseCov = np.eye(measurementSize, dtype=np.float32)
-        #Posterior error estimate (P)
-        obj.errorCovPost = np.eye(stateSize, dtype=np.float32)
-
-        return obj
-
-
+    # -----------------------------
+    # Predict + Correct lépés
+    # -----------------------------
     def _predictAndCorrect(self, measurement):
-        prediction = self.filter.predict()
-        if measurement is not [] or not () and not None:
-            measurement = np.array([[np.float32(measurement[0])], [np.float32(measurement[1])]])
-            self.filter.correct(measurement)
+        pred = self.filter.predict()
 
-            postState = self.filter.statePost
+        if measurement is not None:
+            meas = np.array([[np.float32(measurement[0])],
+                             [np.float32(measurement[1])]])
+            self.filter.correct(meas)
 
-        else:
-            postState = prediction
+        # mindig az aktuális statePost-ot olvassuk ki
+        st = self.filter.statePost if self.filter.statePost is not None else pred
 
-        x,y,vx,vy = self.filter.statePost if self.filter.statePost is not None else prediction
+        return np.array([st[0], st[1], st[2], st[3]], dtype=np.float32).flatten()
 
-        state = np.array([x,y,vx,vy]).astype(np.float32)
-
-        return state
-
-    def predictImpact(self, measurement : tuple[float, float], impactLinePts : tuple[tuple[int,int],tuple[int,int]]):
-        """
-        Updates filter, predicts trajectory, and finds intersection with impact line.
-
-        Args:
-            measurement: (x, y) tuple — latest detection
-            impactLinePts: [(x1,y1), (x2,y2)] — two endpoints of the impact line
-
-        Returns:
-            dict with fields:
-                - 'impactPt': np.ndarray or None (pixel coords)
-                - 'mappedImpact': np.ndarray or None (mapped impact point on line)
-        """
-
-        if measurement == () or None:
-            return None,None
-
-        state = self._predictAndCorrect(measurement)
-        p = state[0:2]
-        v = state[2:4]
-
-        # If the velocity is too small, no reliable intersection
-
-        if abs(np.linalg.norm(v)) < 1.0:
+    # -----------------------------
+    # Becsapódási pont számítása
+    # -----------------------------
+    def predictImpact(self, measurement, impactLinePts):
+        if measurement is None or len(measurement) != 2:
             return None, None
 
+        # Inicializálás az első mérésből
+        if not self.initialized and self.previousMeasurement is not None:
+            initialVelocity = (np.array(measurement) - np.array(self.previousMeasurement)) / self.dt
 
-        # Calculate intersection
-        impactPt, mappedImpactPt = self._calculateImpactOnLine(p, v, impactLinePts)
-        return impactPt, mappedImpactPt
+            self.filter.statePost = np.array([
+                [measurement[0]], [measurement[1]],
+                [initialVelocity[0]], [initialVelocity[1]]
+            ], dtype=np.float32)
+
+            self.initialized = True
+
+        self.previousMeasurement = measurement
+
+        # Kalman lépés
+        state = self._predictAndCorrect(measurement)
+        p, v = state[0:2], state[2:4]
+
+        # Becsapódás számítása
+        impactPt, u = self._calculateImpactOnLine(p, v, impactLinePts)
+        if impactPt is not None:
+            return impactPt, u
+
+        return None, None
 
     # -----------------------------
-    # Helper: intersection
+    # Parametrikus metszésszámítás (stabil)
     # -----------------------------
-    def _calculateImpactOnLine(self, p, v, impactLinePts):
-        """
-        Calculates intersection point of a parametric line p+v*t with a segment a->b.
-        Returns (impact_point, u_param) or (None, None)
-        """
-        a = np.array(impactLinePts[0], dtype=float)
-        b = np.array(impactLinePts[1], dtype=float)
+    def _calculateImpactOnLine(self, p, v, goalLineParams):
+        a = np.array(goalLineParams[0], dtype=np.float32)
+        b = np.array(goalLineParams[1], dtype=np.float32)
 
-        A = np.column_stack((v, -(b - a)))  # 2x2 system
+        # Solve p + v*t = a + u*(b-a)
+        A = np.column_stack((v, -(b - a)))
         rhs = a - p
 
-        if np.linalg.matrix_rank(A) < 2:
+        try:
+            t, u = np.linalg.solve(A, rhs).astype(np.float32).flatten()
+        except np.linalg.LinAlgError:
             return None, None
 
-        sol = np.linalg.solve(A, rhs).flatten()
-        t, u = float(sol[0]), float(sol[1])
-
-        if t < 0:  # intersection is "behind" the current position
+        # Csak előrefelé mozgó metszések
+        if t < 0:
             return None, None
 
-        impact_point = p + v * t
-        return impact_point, u
+        impactPoint = p + v * t
 
+        # clamp u [0,1] és megfelelő végpont
+        if u < 0.0:
+            impactPoint = a
+            u = 0.0
+        elif u > 1.0:
+            impactPoint = b
+            u = 1.0
+
+        return impactPoint, float(u)
 
     def reset(self):
-        return self._createFilter(dims=self.dimensions, dt=self.dt)
+        self.filter = self._createFilter(self.dt)
+        self.initialized = False
+        self.previousMeasurement = None
+        return self.filter
 
     def __str__(self):
-        return f"Kalman Filter in {self.dimensions} dimensions"
+        return "Optimized 2D Kalman Predictor"

@@ -1,32 +1,21 @@
 #!/usr/bin/env python3
+from collections import deque
+
 import cv2
 import numpy as np
-import threading
-import queue
 import json
 import supervision as sv
 from argparse import ArgumentParser
 
 from project.detection.final.predictor import KFPredictor
-from project.detection.final.visualizeUtils import createVisualizeFrame
+from project.detection.final.visualizeUtils import GoalVisualizer
 from project.detection.types.Camera import Camera
-from project.detection.types.FrameBuffer import FrameBuffer
-from project.detection.types.FrameItem import FrameItem
 from project.detection.types.ODModel import ColorDetectorModel
 from project.detection.types.Window import Window
 
-
-# ----------------------------
-# Kamera és ablak segédosztályok
-# ----------------------------
-
-
-# ----------------------------
-# Segédfüggvények
-# ----------------------------
 def argsParser():
     parser = ArgumentParser()
-    parser.add_argument("--camera", type=str, default="/dev/video3", help="Camera id")
+    parser.add_argument("--camera", type=int, default=0, help="Camera id")
     parser.add_argument("--fps", type=float, default=60.0, help="Kamera FPS")
     parser.add_argument("--width", type=int, default=1280, help="Width of frames record")
     parser.add_argument("--height", type=int, default=720, help="Height of frames record")
@@ -55,7 +44,7 @@ def main(args):
 
     # --- megjelenítő ablakok ---
     window = Window("Front Preview", 896, 504)
-    #goalWindow = Window("Goal Preview", 640, 360)
+    goalWindow = Window("Goal Preview", 896, 504)
 
     # --- pontok betöltése JSON-ból ---
     points = loadPoints("points.json")
@@ -77,15 +66,24 @@ def main(args):
     traceAnnotator = sv.TraceAnnotator()
     tracker = sv.ByteTrack()
 
-    predictor = KFPredictor(dimensions=2, dt=dt)
+    predictor = KFPredictor(dt=dt)
+    lastImpactPoint = ()
+    lastMappedImpactPoint = -1.0
 
-    counter = 0
 
     success = True
+
+
+    prevCenter = ()
+    center = ()
+
+    visualizer = GoalVisualizer(fpath="goal.png")
+
     while success:
-        #goalframe = createVisualizeFrame()
 
         success, frame = camera.capture()
+        goalFrame = visualizer.createFrame()
+
 
         if not success:
             print("Cannot capture frames")
@@ -95,51 +93,66 @@ def main(args):
         detections = detector.infer(frame)
         detections = tracker.update_with_detections(detections)
 
-        center = None
+        prevCenter = center
+        center = ()
 
         try:
             center = getCenter(detections.xyxy[0])
+
         except:
             pass
 
-        # --- Kalman előrejelzés ---
+        # --- Kalman előrejelzés ---r
 
         impactPoint, mappedImpact = None, None
 
-        if center:
+        if center != () and prevCenter != () and (
+                abs(center[0] - prevCenter[0]) > 5.0 or abs(center[1] - prevCenter[1]) > 5.0):
             impactPoint, mappedImpact = predictor.predictImpact(center, goalLine)
+            if impactPoint is not None:
+                lastImpactPoint = tuple(map(int, impactPoint))
+                lastMappedImpactPoint = float(mappedImpact)
 
+                #print(f"[CONTROL] ImpactPoint sent: {lastImpactPoint}, u={mappedImpact:.3f}")
 
         annotated = frame.copy()
-        # --- megjelenítés ---
-        cv2.line(annotated, goalLine[0], goalLine[1], (0, 255, 0), 3)
-
+        annotatedGoalFrame = goalFrame.copy()
 
         try:
 
-            annotated = boxAnnotator.annotate(annotated, detections)
-            annotated = traceAnnotator.annotate(annotated, detections)
+            cv2.line(annotated, goalLine[0], goalLine[1], (0, 255, 0), 3)
 
             if center:
+                annotated = boxAnnotator.annotate(annotated, detections)
+                annotated = traceAnnotator.annotate(annotated, detections)
                 cv2.circle(annotated, center, 10, (0,255,0), -1)
 
-            if impactPoint:
-                cv2.circle(annotated, impactPoint, 10, (255,0,0), -1)
-                cv2.putText(annotated, f"Impact u={mappedImpact:.3f}", (50, 50),cv2.FONT_HERSHEY_SIMPLEX,0.6, (255,0,0), 2)
+            if len(lastImpactPoint) == 2:
+
+                cv2.circle(annotated, lastImpactPoint, 10, (255,0,0), -1)
+                cv2.putText(annotated, f"Impact u={mappedImpact:.3f}", (lastImpactPoint[0],lastImpactPoint[1]-10),cv2.FONT_HERSHEY_SIMPLEX,0.6, (255,0,0), 2)
+
+            annotatedGoalFrame = visualizer.annotateFrame(annotatedGoalFrame,0.1, lastMappedImpactPoint)
 
         except:
             pass
 
         # --- ablak megjelenítés ---
         window.showFrame(annotated)
-        #goalWindow.showFrame(goalframe)
+        goalWindow.showFrame(annotatedGoalFrame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == 27 or key == ord('q'):
             break
+        elif key == ord('r'):
+            predictor.reset()
+            lastImpactPoint = ()
+            predictor.impactSent = False
+
 
     del window
     del camera
+    del goalWindow
 
 
 # ----------------------------
