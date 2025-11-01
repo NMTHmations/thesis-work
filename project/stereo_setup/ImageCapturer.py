@@ -1,0 +1,163 @@
+import glob
+import os
+import cv2
+
+from __init__ import *
+
+"""
+Recommended to use like the following 
+
+############################################
+
+ImageCapturer.clear()
+ImageCapturer.captureCalibrationImages()
+
+############################################
+"""
+
+
+class ImageCapturer():
+
+    """
+    Deletes every image from the folders
+
+    Should be used before every re-calibration processes
+    """
+    @staticmethod
+    def clear():
+
+        files = []
+
+        if os.path.exists(mainDir):
+            for subDir in subDirs:
+                subDirPath = os.path.join(mainDir, subDir)
+                if os.path.exists(subDirPath):
+                    files.extend(glob.glob(subDirPath + "/*"))
+
+            for file in files:
+                os.remove(file)
+
+        print("Removed all left/right images")
+
+    """
+        Creates a maximum of 10 pictures using both cameras for calibration purposes.
+        
+        The process controlled by keyboard:
+            q -> End capturing
+            s (1st time) -> Shows potential suitable frame
+                s (2nd time) -> Saves shown frames  
+            Other keys -> Continues without saving frames 
+    
+        #################################################################################
+        
+        Will only work if both cameras are connected and accessible.
+        
+        For best results setup the cameras in stereo (https://docs.opencv.org/4.x/stereo_depth.jpg)
+            and make sure the cameras are in a fixed, stable position.
+        
+        Recommended capturing chessboard images from different angels.
+    
+    """
+    @staticmethod
+    def captureCalibrationImages(leftCamera,rightCamera):
+
+        def create_dirs():
+
+            if not os.path.exists(mainDir):
+                os.makedirs(mainDir)
+                print("Directory " , mainDir.upper() , " created ")
+            else:
+                print("Directory " , mainDir.upper() , " already exists")
+
+            for subDir in subDirs:
+                subPath = os.path.join(mainDir, subDir)
+                if not os.path.exists(subPath):
+                    os.makedirs(subPath)
+                    print("Directory " , subDir.upper() , " created ")
+                else:
+                    print("Directory " , subDir.upper() , " already exists")
+
+        create_dirs()
+
+        capRight = cv2.VideoCapture(rightCamera)
+        capLeft = cv2.VideoCapture(leftCamera)
+
+        capRight.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        capRight.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        capLeft.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        capLeft.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+
+        previewL = "PreviewL"
+        previewR = "PreviewR"
+
+        cv2.namedWindow(previewL, cv2.WINDOW_NORMAL)
+        cv2.namedWindow(previewR, cv2.WINDOW_NORMAL)
+
+        cv2.resizeWindow(previewL, (640, 360))
+        cv2.resizeWindow(previewR, (640, 360))
+
+        if not capRight.isOpened():
+            raise IOError("Couldn't open webcam1 (Right).")
+
+        if not capLeft.isOpened():
+            raise IOError("Couldn't open webcam2 (Left).")
+
+        COUNT = 0
+
+        while capRight.isOpened():
+            successRight, frameRight = capRight.read()
+            successLeft, frameLeft = capLeft.read()
+
+            showImgRight = frameRight.copy()
+            showImgLeft = frameLeft.copy()
+
+            cv2.putText(showImgLeft,f"Left camera: {leftCamera}",(10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+            cv2.putText(showImgRight, f"Right camera: {rightCamera}", (10,30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+            cv2.circle(showImgLeft,(640,360),10,(0,0,255),cv2.FILLED)
+            cv2.circle(showImgRight,(640,360),10,(0,0,255),cv2.FILLED)
+
+            if not successLeft or not successRight:
+                raise Exception("Failed to read frame.")
+
+            cv2.imshow(previewL, showImgLeft)
+            cv2.imshow(previewR, showImgRight)
+
+            showKey = cv2.waitKey(1) & 0xFF
+            if showKey == ord('q'):
+                cv2.destroyAllWindows()
+                break
+            elif showKey == ord('s'):
+
+                capturedRight =  frameRight
+                capturedLeft = frameLeft
+
+                rightWindowName = "capturedRightFrame"
+                leftWindowName = "capturedLeftFrame"
+
+                cv2.namedWindow(rightWindowName, cv2.WINDOW_NORMAL)
+                cv2.namedWindow(leftWindowName, cv2.WINDOW_NORMAL)
+
+                cv2.resizeWindow(rightWindowName, 640, 360)
+                cv2.resizeWindow(leftWindowName, 640, 360)
+
+                cv2.imshow(rightWindowName, capturedRight)
+                cv2.imshow(leftWindowName, capturedLeft)
+
+                saveKey = cv2.waitKey(0) & 0xFF
+                if saveKey == ord('s'):
+                    COUNT = COUNT + 1
+                    cv2.imwrite(os.path.join(mainDir,subDirs[0],f"imageL{COUNT}.png"), frameLeft)
+                    cv2.imwrite(os.path.join(mainDir,subDirs[1],f"imageR{COUNT}.png"), frameRight)
+
+                print("Pictures saved")
+                cv2.destroyWindow(rightWindowName)
+                cv2.destroyWindow(leftWindowName)
+
+
+            if COUNT == 20:
+                cv2.destroyAllWindows()
+                break
+
+        capRight.release()
+        capLeft.release()
