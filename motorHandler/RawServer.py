@@ -1,0 +1,29 @@
+import socket
+from motorController import motorController
+import traceback
+
+controller = motorController()
+INTERFACE = "eth0"
+ETH_TYPE_CUSTOM = b'\x88\xb5'
+s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x0003))
+s.bind((INTERFACE, 0))
+
+while True:
+    packet, addr = s.recvfrom(65535)
+    # Skip Ethernet header (14 bytes)
+    if packet[12:14] != ETH_TYPE_CUSTOM:
+        continue
+    payload = packet[14:]
+    # strip zero padding
+    try:
+        msg = payload.rstrip(b"\x00").decode('utf-8', errors='ignore')
+        parts = msg.split(';')
+        speed = int(parts[0])
+        direction = bool(int(parts[1]))
+        duration = float(parts[2].rsplit("\x00")[0])
+        dir_text = "forward" if direction == True else "backwards"
+        print(f"Command: speed: {speed} direction: {dir_text} duration: {duration} s")
+        controller.moveMotor(speed, direction, duration)
+    except UnicodeDecodeError:
+        traceback.print_exc()
+        print("Non-text payload")
