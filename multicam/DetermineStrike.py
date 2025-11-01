@@ -33,19 +33,27 @@ class DetermineStrike:
             return 2
         return 1
     
-    def _getBounce(self):
-        dy1 = 0
-        dy2 = 0
-        if self.isFront:
-            dy1 = self.positionX[-1] - self.positionX[-2]
-            dy2 = self.positionX[-2] - self.positionX[-2]
+    def _getBounce(self, window:int = 5, threshold:float = 2.0):
+        if self.isFront == False:
+            if len(self.positionY) < window + 2:
+                return False
         else:
-            dy1 = self.positionY[-1] - self.positionY[-2]
-            dy2 = self.positionY[-2] - self.positionY[-2]
-        if dy1 * dy2 < 0 and abs(dy1) > 3 and abs(dy2) > 3:
-            return True
-        return False
+            if len(self.positionX) < window + 2:
+                return False
         
+        recent = None
+        if self.isFront:
+            recent = self.positionX[-(window+2):]
+        else:
+            recent = self.positionY[-(window+2):]
+        
+        dy = np.diff(recent)
+        for i in range(1, len(dy)):
+            if dy[i-1] > threshold and dy[i] < -threshold:
+                return True
+
+        return False
+
     def _getIntersection(self,p1,p2,p3,p4):
         p1, p2, p3, p4 = map(np.array,(p1,p2,p3,p4))
         d1 = p2 - p1

@@ -94,13 +94,13 @@ class ParallelTools():
         cv2.destroyAllWindows()
         exit()
 
-    def getGoalResults(self,start_event,stop_event, isGoalFront, isGoalDexter, currentStep):
+    def getGoalResults(self,start_event,stop_event, isGoalFront, isGoalDexter, currentStep, strikeFront):
         start_event.wait()
         while not stop_event.is_set():
             if isGoalFront.value is not None and isGoalDexter.value is not None:
                 print("Goal!")
                 maxStep = self.endStep - self.startStep
-                ratio = maxStep / 640
+                ratio = maxStep / (strikeFront["acceptEnd"][0] - strikeFront["acceptStart"][0])
                 pointX = min(self.startStep + round(isGoalFront.value[0] * ratio), self.endStep)
                 steps = pointX - currentStep
                 direction = True
@@ -143,7 +143,7 @@ class ParallelTools():
         isGoalDexter = manager.Value(object, None)
         processFront = Process(target=self._cameraHandler,args=(self.sourceFront, self.strikeFront,start_event,stop_event,False, isGoalFront, isGoalDexter))
         processDexter = Process(target=self._cameraHandler,args=(self.sourceDexter, self.strikeDexter,start_event,stop_event,True, isGoalFront, isGoalDexter))
-        goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter, currentStep))
+        goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter, currentStep, self.strikeFront))
         hailoGod = Process(target=self.HailoInferenceJudge,args=(start_event,stop_event))
         processFront.start()
         processDexter.start()

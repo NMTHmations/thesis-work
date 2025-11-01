@@ -45,10 +45,10 @@ def processJson(path: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Robotic Football - Goal Keeper Automat")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    camTools = subparsers.add_parser('CamTools', help='Shows camera settings under Raspberry Pi')
     frameGetter = subparsers.add_parser('getFrames', help='get Frames for Robflow annotation')
     frameGetter.add_argument('--src',type=str,required=True,help="The source file of the video (must be .mp4/.mov)")
     frameGetter.add_argument('--dst',type=str,required=True,help="The destination library of the frames")
+    camTools = subparsers.add_parser('CamTools', help='Shows camera settings under Raspberry Pi')
     camDetection = subparsers.add_parser('startDetection', help='Starts detection')
     camDetection.add_argument('--lowerHSV',type=str,required=False,help="Sets lower HSV")
     camDetection.add_argument('--upperHSV',type=str,required=False,help="Sets upper HSV")
