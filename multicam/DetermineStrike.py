@@ -38,12 +38,12 @@ class DetermineStrike:
             if len(self.positionY) < window + 2:
                 return False
         else:
-            if len(self.positionX) < window + 2:
+            if len(self.PositionX) < window + 2:
                 return False
         
         recent = None
         if self.isFront:
-            recent = self.positionX[-(window+2):]
+            recent = self.PositionX[-(window+2):]
         else:
             recent = self.positionY[-(window+2):]
         

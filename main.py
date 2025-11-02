@@ -96,7 +96,7 @@ if __name__ == "__main__":
                     "isFront": True
                 }
 
-            executer = ParallelTools.ParallelTools("/dev/video0","/dev/video1",frontStrike,dexterStrike,startStep,endStep,albument)
+            executer = ParallelTools.ParallelTools("/dev/video0","/dev/video2",frontStrike,dexterStrike,startStep,endStep,albument)
             executer.CameraHandler()
     except Exception as e:
         traceback.print_exc()
