@@ -5,9 +5,8 @@ import albumentations as abm
 from scipy.interpolate import UnivariateSpline
 
 class DetermineStrike:
-    def __init__(self,debug:bool = False,
-                 acceptStart:tuple = None,acceptEnd:tuple = None,
-                 lowerHSV:list=None, upperHSV:list = None, isFront:bool = False):
+    def __init__(self,
+                 acceptStart:tuple = None,acceptEnd:tuple = None, isFront:bool = False):
         self.tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1)
         self.label = sv.LabelAnnotator()
         self.annotator = sv.BoxAnnotator()
@@ -15,18 +14,14 @@ class DetermineStrike:
         self.xList = [i for i in range(0,640)]
         self.positionY = []
         self.PositionX = []
-        self.isDebug = False
-        if debug == True and lowerHSV != None and upperHSV != None:
-            self.isDebug = True
         self.acceptStart = acceptStart
         self.acceptEnd = acceptEnd
-        self.lowerHSV = lowerHSV
-        self.upperHSV = upperHSV
         self.isFront = isFront
         self.PolinomialDegree = self._setDegree()
         self.height = 480
         self.width = 640
         self.class_names = ['Ball','Football']
+        self.still_counter = 0
     
     def _setDegree(self):
         if self.isFront:
@@ -38,12 +33,12 @@ class DetermineStrike:
             if len(self.positionY) < window + 2:
                 return False
         else:
-            if len(self.positionX) < window + 2:
+            if len(self.PositionX) < window + 2:
                 return False
         
         recent = None
         if self.isFront:
-            recent = self.positionX[-(window+2):]
+            recent = self.PositionX[-(window+2):]
         else:
             recent = self.positionY[-(window+2):]
         
@@ -67,31 +62,6 @@ class DetermineStrike:
             points = p1 + t * d1
             return True, tuple(points.astype(int))
         return False, None
-
-    def _getMask(self, lower:list, upper:list,iterations:int,frame):
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        # Define green color range (tune these values)
-        lower_yellow = np.array(lower)
-        upper_yellow = np.array(upper)
-        # Threshold the HSV image to get only green colors
-        mask = cv2.inRange(hsv, lower_yellow , upper_yellow)
-        mask = cv2.GaussianBlur(mask, (5, 5), 0)
-        mask = cv2.erode(mask, None, iterations=iterations)
-        mask = cv2.dilate(mask, None, iterations=iterations)
-        _, thresh = cv2.threshold(mask, 85, 255, cv2.THRESH_BINARY)
-        points, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, 
-                    cv2.CHAIN_APPROX_SIMPLE)
-        points = [[row[0].tolist()[0][1],row[0].tolist()[0][0]] for row in points]
-        return points, thresh
-    
-    def _getBottom(self,points):
-        if len(points) == 0:
-            return []
-        minimum = points[0]
-        for point in points:
-            if point[0] < minimum[0]:
-                minimum = point
-        return [minimum]
     
     def _albumentImage(self,frame):
         blur_image = abm.OneOf([
@@ -102,11 +72,19 @@ class DetermineStrike:
         frame = transformed["image"]
         return frame
     
-    def _getDebugListPoint(self,lista,frame):
-        points, thresh = self._getMask(self.lowerHSV,self.upperHSV,1,frame=frame)
-        cv2.imshow("threshold",thresh)
-        lista = lista + self._getBottom(points)
-        return lista
+    def checkStill(self):
+        motion_inactive = False
+        if len(self.PositionX) > 2:
+            vx = abs(self.PositionX[-1] - self.PositionX[-2])
+            vy = abs(self.positionY[-1] - self.positionY[-2])
+            if vx < 3.0 or vy < 3.0:
+                self.still_counter += 1
+            else:
+                self.still_counter = 0
+                motion_inactive = False
+        if self.still_counter >= 10:
+            motion_inactive = True
+        return motion_inactive
     
     def extract_detections(self,output:list, h: int, w: int, threshold: float = 0.05):
         xyxy = []
@@ -169,10 +147,10 @@ class DetermineStrike:
         sv_detections = self.extract_detections(detections,self.height,self.width,0.25)
         frame, points = self.process_detections(frame,sv_detections,self.class_names,self.tracker,self.annotator,self.label)
         lista = points.tolist()
-        if self.isDebug:
-            lista = self._getDebugListPoint(lista,frame)
         if (len(lista) != 0):
             X, Y = lista[0]
+            if self.checkStill():
+                return frame, None
             self.PositionX.append(X)
             self.positionY.append(Y)
             if self._getBounce():

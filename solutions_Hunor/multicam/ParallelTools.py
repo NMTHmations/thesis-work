@@ -102,7 +102,7 @@ class ParallelTools():
                 maxStep = self.endStep - self.startStep
                 ratio = maxStep / (strikeFront["acceptEnd"][0] - strikeFront["acceptStart"][0])
                 pointX = min(self.startStep + round(isGoalFront.value[0] * ratio), self.endStep)
-                steps = pointX - currentStep
+                steps = pointX - currentStep.value
                 direction = True
                 if steps < 0:
                     direction = False

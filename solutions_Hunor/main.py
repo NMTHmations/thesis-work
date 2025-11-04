@@ -11,7 +11,7 @@ def processJson(path: str):
     with open(path,"r") as file:
         content = file.read()
         json_content = dict(json.loads(content))
-        elems = ["acceptStartF","acceptEndF","acceptStartS","acceptEndS","lowerHSV","upperHSV","debug"]
+        elems = ["acceptStartF","acceptEndF","acceptStartS","acceptEndS"]
         redirecting_elems = {
             "acceptStartF": "acceptStart",
             "acceptStartS": "acceptStart",
@@ -24,15 +24,8 @@ def processJson(path: str):
                     frontStrike[redirecting_elems[celems]] = json_content[celems]
                 elif celems == "acceptStartD" or celems == "acceptEndD":
                     dexterStrike[redirecting_elems[celems]] = json_content[celems]
-                else:
-                    frontStrike[celems] = json_content[celems]
-                    dexterStrike[celems] = json_content[celems]
             else:
-                if index < 4: 
-                    raise Exception(f"The following element is missing from the {path} file: {celems}")
-        if "upperHSV" in frontStrike and "lowerHSV" in frontStrike:
-            frontStrike["debug"] = True
-            dexterStrike["debug"] = True
+                raise Exception(f"The following element is missing from the {path} file: {celems}")
         startStep = json_content["startStep"] if "startStep" in json_content else 0
         endStep = json_content["endStep"] if "endStep" in json_content else 600
         albument = json_content["albument"] if "albument" in json_content else False
@@ -50,8 +43,6 @@ if __name__ == "__main__":
     frameGetter.add_argument('--dst',type=str,required=True,help="The destination library of the frames")
     camTools = subparsers.add_parser('CamTools', help='Shows camera settings under Raspberry Pi')
     camDetection = subparsers.add_parser('startDetection', help='Starts detection')
-    camDetection.add_argument('--lowerHSV',type=str,required=False,help="Sets lower HSV")
-    camDetection.add_argument('--upperHSV',type=str,required=False,help="Sets upper HSV")
     camDetection.add_argument('--albument',required=False,help="Albument camera image",action='store_false')
     camDetection.add_argument('--file',required=False,help="Get arguments from file (if you give other args, which is not in the file, then it will be ignored)")
 
@@ -70,29 +61,14 @@ if __name__ == "__main__":
             if args.file != None:
                 frontStrike, dexterStrike, startStep, stopStep, albument = processJson(args.file)
             else:
-                lowerHSV = None
-                upperHSV = None
-                if args.lowerHSV != None and args.upperHSV != None:
-                    if len(args.lowerHSV.split(",")) == 3 and len(args.upperHSV.split(",")) == 3:
-                        lowerHSV =  [int(args.lowerHSV.split(',')[0]),int(args.lowerHSV.split(',')[1]),int(args.lowerHSV.split(',')[2])]
-                        upperHSV =  [int(args.upperHSV.split(',')[0]),int(args.upperHSV.split(',')[1]),int(args.upperHSV.split(',')[2])]
-                    else:
-                        raise Exception("Invalid HSV format")
-                debug = lowerHSV != None and upperHSV != None
                 dexterStrike = {
                     "acceptStart": (150, 0),
                     "acceptEnd": (150, 480),
-                    "lowerHSV": lowerHSV,
-                    "upperHSV": upperHSV,
-                    "debug": debug
                 }
 
                 frontStrike = {
                     "acceptStart": (0, 480),
                     "acceptEnd": (640, 480),
-                    "lowerHSV": lowerHSV,
-                    "upperHSV": upperHSV,
-                    "debug": debug,
                     "isFront": True
                 }
 
