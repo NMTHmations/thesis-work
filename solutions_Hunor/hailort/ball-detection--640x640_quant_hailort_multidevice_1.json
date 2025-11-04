@@ -1,0 +1,33 @@
+{
+    "ConfigVersion": 11,
+    "Checksum": "1c34ab6a8ecafc4ce92374a356d21aecf358d3d9d70c7bfc8e0ae621d356de19",
+    "DEVICE": [
+        {
+            "DeviceType": "HAILO8L",
+            "RuntimeAgent": "HAILORT",
+            "SupportedDeviceTypes": "HAILORT/HAILO8L, HAILORT/HAILO8",
+            "EagerBatchSize": 1
+        }
+    ],
+    "PRE_PROCESS": [
+        {
+            "InputN": 1,
+            "InputH": 640,
+            "InputW": 640,
+            "InputC": 3,
+            "InputQuantEn": true
+        }
+    ],
+    "MODEL_PARAMETERS": [
+        {
+            "ModelPath": "ball-detection--640x640_quant_hailort_multidevice_1.hef"
+        }
+    ],
+    "POST_PROCESS": [
+        {
+            "OutputPostprocessType": "DetectionYoloHailo",
+            "OutputNumClasses": 2,
+            "LabelsPath": "labels_ball-detection.json"
+        }
+    ]
+}

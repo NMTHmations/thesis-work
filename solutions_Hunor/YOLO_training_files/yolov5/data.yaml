@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 28
+names: ['Ball', 'ball', 'baseball', 'basketball', 'bowling ball', 'cricket ball', 'disco ball', 'dodgeball', 'fireball', 'floor ball', 'foam ball', 'foot', 'football', 'golf ball', 'handball', 'hockey', 'medicine ball', 'moonball', 'other', 'pickleball', 'pingpong ball', 'rugby ball', 'softball', 'sports ball', 'strandball', 'tennis ball', 'volleyball', 'yoga ball']
+
+roboflow:
+  workspace: roboflowthesis
+  project: detect-and-classify-object-detection-h3ecz
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/roboflowthesis/detect-and-classify-object-detection-h3ecz/dataset/3

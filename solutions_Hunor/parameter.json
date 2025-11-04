@@ -1,0 +1,7 @@
+{
+    "acceptStartF": [0, 480],
+    "acceptEndF": [640, 480],
+    "acceptStartS": [150, 0],
+    "acceptEndS": [150, 480],
+    "maxSteps": 30
+}
