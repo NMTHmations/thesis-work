@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import supervision as sv
 
-from project.detection.final.calc import getCenter
+#from project.detection.final.calc import getCenter
 from project.detection.final.fieldutils import FieldUtils
 from project.detection.final.predictor import KFPredictor_2D
 from project.detection.types.ODModel import ColorDetectorModel

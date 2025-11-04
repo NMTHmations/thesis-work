@@ -6,12 +6,12 @@ from multiprocessing import Process, Event
 from multiprocessing import Value, Queue, Manager
 from picamera2.devices import Hailo
 from . import MotorClient
+from project.detection.types.ODModel import ColorDetectorModel
 
 
 class ParallelTools():
-    
-    
-    def __init__(self,camFront:str|int,camDexter:str|int, strikeFront, strikeDexter, albument: bool = False, startStep = 0, endStep = 600):
+
+    def __init__(self,strikeFront: dict, camFront:str|int,camDexter:str|int = "", strikeDexter:dict = {}, albument: bool = False, startStep = 0, endStep = 600, debug: bool = False):
         self.sourceFront = camFront
         self.sourceDexter = camDexter
         self.strikeFront = strikeFront
@@ -24,11 +24,15 @@ class ParallelTools():
         self.startStep = startStep
         self.endStep = endStep
         self.albument = albument
+        self.lowerHSV = (45, 167, 0)
+        self.upperHSV = (89, 255, 255)
+        self.debug = debug
     
     def _cameraHandler(self,source,strikeEstimaterDetails,start_event,stop_event, isSide:bool, isGoalFront, isGoalDexter):
         start_event.wait()
+        strikeEstimaterDetails["debug"] = self.debug
         strikeEstimater = DetermineStrike.DetermineStrike(**strikeEstimaterDetails)
-        cap = cv2.VideoCapture(filename=source)
+        cap = cv2.VideoCapture(source)
         cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         cap.set(cv2.CAP_PROP_FPS,120)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -46,7 +50,7 @@ class ParallelTools():
                 continue
             
             frame = cv2.resize(frame, (640, 480))
-            input_data = np.expand_dims(frame.astype(np.uint8), 0)
+            input_data = np.expand_dims(frame.astype(np.uint8), 0) if self.debug == False else frame
             timestamp = time.time()
 
             if isSide:
@@ -102,7 +106,7 @@ class ParallelTools():
                 maxStep = self.endStep - self.startStep
                 ratio = maxStep / (strikeFront["acceptEnd"][0] - strikeFront["acceptStart"][0])
                 pointX = min(self.startStep + round(isGoalFront.value[0] * ratio), self.endStep)
-                steps = pointX - currentStep
+                steps = pointX - currentStep.value
                 direction = True
                 if steps < 0:
                     direction = False
@@ -112,27 +116,36 @@ class ParallelTools():
                 isGoalFront.value = None
                 isGoalDexter.value = None
     
-    def HailoInferenceJudge(self,start_event,stop_event):
+    def InferenceJudge(self,start_event,stop_event):
         start_event.wait()
-        HailoModel = Hailo("hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef")
+        Model = None
+        if self.debug == False:
+            Model = Hailo("hailort/ball-detection--640x480_quant_hailort_hailo8_1.hef")
+        else:
+            Model = ColorDetectorModel(self.lowerHSV, self.upperHSV)
         while not stop_event.is_set():
             try:
                 ts_front, input_front = self.InputFront.get_nowait()
-                output = HailoModel.run_async(input_front)
-                result = output.result()
+                result = None
+                if self.debug == False:
+                    output = Model.run_async(input_front)
+                    result = output.result()
+                else:
+                    result = Model.infer(input_front)
                 self.OutputFront.put((ts_front, result))
             except:
                 pass
             
             try:
                 ts_side, input_side = self.InputSide.get_nowait()
-                output = HailoModel.run_async(input_side)
+                output = Model.run_async(input_side)
                 result = output.result()
                 self.OutputSide.put((ts_side, result))
             except:
                 pass
-            
-        HailoModel.close()
+
+        if self.debug == False:    
+            Model.close()
 
     def CameraHandler(self):
         start_event = Event()
@@ -140,18 +153,21 @@ class ParallelTools():
         currentStep = Value("i",self.startStep)
         manager = Manager()
         isGoalFront = manager.Value(object, None)
-        isGoalDexter = manager.Value(object, None)
+        isGoalDexter = manager.Value(object, None) if self.debug == False else manager.Value(object, True)
         processFront = Process(target=self._cameraHandler,args=(self.sourceFront, self.strikeFront,start_event,stop_event,False, isGoalFront, isGoalDexter))
-        processDexter = Process(target=self._cameraHandler,args=(self.sourceDexter, self.strikeDexter,start_event,stop_event,True, isGoalFront, isGoalDexter))
+        if self.debug == False:
+            processDexter = Process(target=self._cameraHandler,args=(self.sourceDexter, self.strikeDexter,start_event,stop_event,True, isGoalFront, isGoalDexter))
         goalSummarizer = Process(target=self.getGoalResults,args=(start_event,stop_event, isGoalFront, isGoalDexter, currentStep, self.strikeFront))
-        hailoGod = Process(target=self.HailoInferenceJudge,args=(start_event,stop_event))
+        hailoGod = Process(target=self.InferenceJudge,args=(start_event,stop_event))
         processFront.start()
-        processDexter.start()
+        if self.debug == False:
+            processDexter.start()
         goalSummarizer.start()
         hailoGod.start()
         start_event.set()
         processFront.join()
-        processDexter.join()
+        if self.debug == False:
+            processDexter.join()
         goalSummarizer.join()
         hailoGod.join()
 

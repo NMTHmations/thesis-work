@@ -2,13 +2,14 @@ import supervision as sv
 import cv2
 import numpy as np
 import albumentations as abm
-from scipy.interpolate import UnivariateSpline
+from project.detection.final.predictor import KFPredictor
+from project.detection.final.finalSingleCam import getCenter
 
 class DetermineStrike:
-    def __init__(self,debug:bool = False,
-                 acceptStart:tuple = None,acceptEnd:tuple = None,
-                 lowerHSV:list=None, upperHSV:list = None, isFront:bool = False):
-        self.tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1)
+    def __init__(self,
+                 acceptStart:tuple = None,acceptEnd:tuple = None, isFront:bool = False, dt=1.0 / 60.0, debug = False):
+        self.debug = debug
+        self.tracker = sv.ByteTrack(track_activation_threshold=0.25,minimum_matching_threshold=1) if self.debug == False else sv.ByteTrack()
         self.label = sv.LabelAnnotator()
         self.annotator = sv.BoxAnnotator()
         self.trace_annotator = sv.TraceAnnotator()
@@ -16,22 +17,38 @@ class DetermineStrike:
         self.positionY = []
         self.PositionX = []
         self.isDebug = False
-        if debug == True and lowerHSV != None and upperHSV != None:
-            self.isDebug = True
         self.acceptStart = acceptStart
         self.acceptEnd = acceptEnd
-        self.lowerHSV = lowerHSV
-        self.upperHSV = upperHSV
         self.isFront = isFront
         self.PolinomialDegree = self._setDegree()
         self.height = 480
         self.width = 640
+        self.center = ()
+        self.prevCenter = ()
+        self.predictor = KFPredictor(dt=dt)
         self.class_names = ['Ball','Football']
+        self.still_counter = 0
     
     def _setDegree(self):
-        if self.isFront:
+        if self.isFront == False:
             return 2
         return 1
+    
+    def filterPredictionsKarman(self):
+
+        goalLine = (self.acceptStart, self.acceptEnd)
+
+        impactPoint, mappedImpact = None, None
+
+        if self.center != () and self.prevCenter != () and (
+                abs(self.center[0] - self.prevCenter[0]) > 5.0 or abs(self.center[1] - self.prevCenter[1]) > 5.0):
+            impactPoint, mappedImpact = self.predictor.predictImpact(self.center, goalLine)
+            if impactPoint is not None:
+                lastImpactPoint = tuple(map(int, impactPoint))
+                lastMappedImpactPoint = float(mappedImpact)
+                return lastImpactPoint, lastMappedImpactPoint
+        return None, None
+
     
     def _getBounce(self, window:int = 5, threshold:float = 2.0):
         if self.isFront == False:
@@ -67,31 +84,6 @@ class DetermineStrike:
             points = p1 + t * d1
             return True, tuple(points.astype(int))
         return False, None
-
-    def _getMask(self, lower:list, upper:list,iterations:int,frame):
-        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        # Define green color range (tune these values)
-        lower_yellow = np.array(lower)
-        upper_yellow = np.array(upper)
-        # Threshold the HSV image to get only green colors
-        mask = cv2.inRange(hsv, lower_yellow , upper_yellow)
-        mask = cv2.GaussianBlur(mask, (5, 5), 0)
-        mask = cv2.erode(mask, None, iterations=iterations)
-        mask = cv2.dilate(mask, None, iterations=iterations)
-        _, thresh = cv2.threshold(mask, 85, 255, cv2.THRESH_BINARY)
-        points, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, 
-                    cv2.CHAIN_APPROX_SIMPLE)
-        points = [[row[0].tolist()[0][1],row[0].tolist()[0][0]] for row in points]
-        return points, thresh
-    
-    def _getBottom(self,points):
-        if len(points) == 0:
-            return []
-        minimum = points[0]
-        for point in points:
-            if point[0] < minimum[0]:
-                minimum = point
-        return [minimum]
     
     def _albumentImage(self,frame):
         blur_image = abm.OneOf([
@@ -101,12 +93,7 @@ class DetermineStrike:
         transformed = blur_image(image=frame)
         frame = transformed["image"]
         return frame
-    
-    def _getDebugListPoint(self,lista,frame):
-        points, thresh = self._getMask(self.lowerHSV,self.upperHSV,1,frame=frame)
-        cv2.imshow("threshold",thresh)
-        lista = lista + self._getBottom(points)
-        return lista
+
     
     def extract_detections(self,output:list, h: int, w: int, threshold: float = 0.05):
         xyxy = []
@@ -145,56 +132,86 @@ class DetermineStrike:
 
     def process_detections(self,frame: np.ndarray, detections: dict, class_names: list, tracker: sv.ByteTrack, 
                            box_annotator: sv.BoxAnnotator, label_annotator: sv.LabelAnnotator):
-        if len(detections['xyxy']) == 0:
-            return frame, np.empty((0, 2))
-        sv_detections = sv.Detections(xyxy=detections["xyxy"],
-                                      confidence=detections["confidence"],
-                                      class_id=detections["class_id"])
+        sv_detections = detections
+        if self.debug == False:
+            if len(detections['xyxy']) == 0:
+                return frame, np.empty((0, 2))
+            sv_detections = sv.Detections(xyxy=detections["xyxy"],
+                                          confidence=detections["confidence"],
+                                          class_id=detections["class_id"])
 
         sv_detections = tracker.update_with_detections(sv_detections)
 
         points = sv_detections.get_anchors_coordinates(anchor=sv.Position.BOTTOM_CENTER)
 
-        labels = [f"{class_names[cls]} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
+        annotated_frame = frame
 
         annotated_frame = box_annotator.annotate(scene=frame.copy(),detections=sv_detections)
 
-        annotated_frame = label_annotator.annotate(scene=annotated_frame,detections=sv_detections,labels=labels)
+        if self.debug == False:
+
+            labels = [f"{class_names[cls]} {conf:.2f}" for cls, conf in zip(sv_detections.class_id, sv_detections.tracker_id)]
+
+            annotated_frame = label_annotator.annotate(scene=annotated_frame,detections=sv_detections,labels=labels)
         return (annotated_frame, points)
+    
+    def checkStill(self):
+        motion_inactive = False
+        if len(self.PositionX) > 2:
+            vx = abs(self.PositionX[-1] - self.PositionX[-2])
+            vy = abs(self.positionY[-1] - self.positionY[-2])
+            if vx < 3.0 or vy < 3.0:
+                self.still_counter += 1
+            else:
+                self.still_counter = 0
+                motion_inactive = False
+        if self.still_counter >= 10:
+            motion_inactive = True
+        return motion_inactive
     
     def detectFrame(self,frame:tuple, detections, albumentation:bool = False):
         cross_points = None
         if albumentation:
             frame = self._albumentImage(frame)
-        sv_detections = self.extract_detections(detections,self.height,self.width,0.25)
+        sv_detections = self.extract_detections(detections,self.height,self.width,0.25) if self.debug == False else detections
         frame, points = self.process_detections(frame,sv_detections,self.class_names,self.tracker,self.annotator,self.label)
         lista = points.tolist()
-        if self.isDebug:
-            lista = self._getDebugListPoint(lista,frame)
-        if (len(lista) != 0):
-            X, Y = lista[0]
-            self.PositionX.append(X)
-            self.positionY.append(Y)
-            if self._getBounce():
-                self.PolinomialDegree = min(self.PolinomialDegree + 1, 6)
-            coeff = np.polyfit(self.PositionX, self.positionY, self.PolinomialDegree)
-            p = np.poly1d(coeff)
+        if self.debug:
+            self.prevCenter = self.center
+            self.center = ()
             try:
-                for i in range(1,len(self.xList)+1):
-                    x = int(self.xList[i-1])
-                    y = int(p(x))
-                    if i < len(self.xList):
-                        x1 = int(self.xList[i])
-                        y1 = int(p(x1))
-                        cross, points = self._getIntersection((x,y),(x1,y1),self.acceptStart,self.acceptEnd)
-                        if cross:
-                            cross_points = points
-                    cv2.circle(frame,(int(x),int(y)),5,(255,0,255),cv2.FILLED)
+                self.center = getCenter(sv_detections.xyxy[0])
+                lastImpactPoint, lastMappedImpactPoint = self.filterPredictionsKarman()
+                cross_points = lastImpactPoint
             except:
                 pass
         else:
-            if len(self.PositionX) > 10:
-                self.flushPositions()
+            if (len(lista) != 0):
+                X, Y = lista[0]
+                if self.checkStill():
+                    return frame, None
+                self.PositionX.append(X)
+                self.positionY.append(Y)
+                if self._getBounce():
+                    self.PolinomialDegree = min(self.PolinomialDegree + 1, 6)
+                coeff = np.polyfit(self.PositionX, self.positionY, self.PolinomialDegree)
+                p = np.poly1d(coeff)
+                try:
+                    for i in range(1,len(self.xList)+1):
+                        x = int(self.xList[i-1])
+                        y = int(p(x))
+                        if i < len(self.xList):
+                            x1 = int(self.xList[i])
+                            y1 = int(p(x1))
+                            cross, points = self._getIntersection((x,y),(x1,y1),self.acceptStart,self.acceptEnd)
+                            if cross:
+                                cross_points = points
+                        cv2.circle(frame,(int(x),int(y)),5,(255,0,255),cv2.FILLED)
+                except:
+                    pass
+            else:
+                if len(self.PositionX) > 10:
+                    self.flushPositions()
         cv2.line(frame,self.acceptStart,self.acceptEnd,(0,255,0),2)
         return frame, cross_points
     
@@ -202,3 +219,6 @@ class DetermineStrike:
         self.PositionX = []
         self.positionY = []
         self.PolinomialDegree = self._setDegree()
+        self.center = ()
+        self.prevCenter = ()
+        self.still_counter = 0

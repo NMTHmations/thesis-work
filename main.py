@@ -50,8 +50,7 @@ if __name__ == "__main__":
     frameGetter.add_argument('--dst',type=str,required=True,help="The destination library of the frames")
     camTools = subparsers.add_parser('CamTools', help='Shows camera settings under Raspberry Pi')
     camDetection = subparsers.add_parser('startDetection', help='Starts detection')
-    camDetection.add_argument('--lowerHSV',type=str,required=False,help="Sets lower HSV")
-    camDetection.add_argument('--upperHSV',type=str,required=False,help="Sets upper HSV")
+    camDetection.add_argument('--debug',required=False,help="Albument camera image",action='store_false')
     camDetection.add_argument('--albument',required=False,help="Albument camera image",action='store_false')
     camDetection.add_argument('--file',required=False,help="Get arguments from file (if you give other args, which is not in the file, then it will be ignored)")
 
@@ -70,34 +69,22 @@ if __name__ == "__main__":
             if args.file != None:
                 frontStrike, dexterStrike, startStep, stopStep, albument = processJson(args.file)
             else:
-                lowerHSV = None
-                upperHSV = None
-                if args.lowerHSV != None and args.upperHSV != None:
-                    if len(args.lowerHSV.split(",")) == 3 and len(args.upperHSV.split(",")) == 3:
-                        lowerHSV =  [int(args.lowerHSV.split(',')[0]),int(args.lowerHSV.split(',')[1]),int(args.lowerHSV.split(',')[2])]
-                        upperHSV =  [int(args.upperHSV.split(',')[0]),int(args.upperHSV.split(',')[1]),int(args.upperHSV.split(',')[2])]
-                    else:
-                        raise Exception("Invalid HSV format")
-                debug = lowerHSV != None and upperHSV != None
                 dexterStrike = {
                     "acceptStart": (150, 0),
                     "acceptEnd": (150, 480),
-                    "lowerHSV": lowerHSV,
-                    "upperHSV": upperHSV,
-                    "debug": debug
                 }
 
                 frontStrike = {
                     "acceptStart": (0, 480),
                     "acceptEnd": (640, 480),
-                    "lowerHSV": lowerHSV,
-                    "upperHSV": upperHSV,
-                    "debug": debug,
                     "isFront": True
                 }
-
-            executer = ParallelTools.ParallelTools("/dev/video0","/dev/video2",frontStrike,dexterStrike,startStep,endStep,albument)
-            executer.CameraHandler()
+            if args.debug:
+                executer = ParallelTools.ParallelTools(frontStrike,"/dev/video0","/dev/video2",dexterStrike,startStep,endStep,albument)
+                executer.CameraHandler()
+            else:
+                executer = ParallelTools.ParallelTools(frontStrike,"/dev/video0", debug=True)
+                executer.CameraHandler()
     except Exception as e:
         traceback.print_exc()
         exit(1)       
