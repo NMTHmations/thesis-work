@@ -76,5 +76,5 @@ if __name__ == "__main__":
             executer.CameraHandler()
     except Exception as e:
         traceback.print_exc()
-        exit(1)       
+        exit(1)
 

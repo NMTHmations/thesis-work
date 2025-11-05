@@ -2,7 +2,6 @@ import supervision as sv
 import cv2
 import numpy as np
 import albumentations as abm
-from scipy.interpolate import UnivariateSpline
 
 class DetermineStrike:
     def __init__(self,
