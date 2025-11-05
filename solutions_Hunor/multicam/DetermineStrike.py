@@ -34,13 +34,13 @@ class DetermineStrike:
         else:
             if len(self.PositionX) < window + 2:
                 return False
-        
+
         recent = None
         if self.isFront:
             recent = self.PositionX[-(window+2):]
         else:
             recent = self.positionY[-(window+2):]
-        
+
         dy = np.diff(recent)
         for i in range(1, len(dy)):
             if dy[i-1] > threshold and dy[i] < -threshold:
@@ -70,7 +70,7 @@ class DetermineStrike:
         transformed = blur_image(image=frame)
         frame = transformed["image"]
         return frame
-    
+
     def checkStill(self):
         motion_inactive = False
         if len(self.PositionX) > 2:
@@ -84,7 +84,7 @@ class DetermineStrike:
         if self.still_counter >= 10:
             motion_inactive = True
         return motion_inactive
-    
+
     def extract_detections(self,output:list, h: int, w: int, threshold: float = 0.05):
         xyxy = []
         confidence = []
